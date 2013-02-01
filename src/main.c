@@ -1,11 +1,3 @@
-//
-//  main.c
-//  Kanu
-//
-//  Created by Darren Shen on 30/01/13.
-//  Copyright (c) 2013 Darren Shen. All rights reserved.
-//
-
 #include <stdio.h>
 
 #include "include/parser.h"
