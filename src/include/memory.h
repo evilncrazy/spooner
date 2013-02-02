@@ -1,16 +1,16 @@
-#ifndef MEMORY_H
-#define MEMORY_H
+#ifndef SPOONER_MEMORY_H
+#define SPOONER_MEMORY_H
 
 #include <stdio.h>
 
-void *ga_malloc(size_t length) {
+void *sp_malloc(size_t length) {
    void *ptr = malloc(length);
-   printf("allocated %p (%d bytes)\n", ptr, (int)length);
+   // printf("allocated %p (%d bytes)\n", ptr, (int)length);
    return ptr;
 }
 
-void ga_free(void *ptr) {
-   printf("freed %p\n", ptr);
+void sp_free(void *ptr) {
+   // printf("freed %p\n", ptr);
    free(ptr);
    ptr = NULL;
 }

@@ -1,5 +1,5 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef SPOONER_PARSER_H
+#define SPOONER_PARSER_H
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -11,151 +11,180 @@
 #include "operators.h"
 #include "limits.h"
 
-char peek_next(FILE *file) {
-   char c = getc(file);
-   ungetc(c, file);
-   return c;
+typedef struct {
+   int start_pos;
+   int end_pos;
+   SpError *error;
+} ParseResult;
+
+inline char peek_next(char *line) {
+   return *(line + 1);
 }
 
-int next_token(FILE *file, Token *token) {
-   while(!feof(file)) {
-      char c = getc(file);
-      switch(c) {
-         case ' ': case '\t': break;
-         case '*': case '/': case '+': case '-':
-         case '(': case ')': case '[': case ']': {
-            /* the token should have a value that represents the operator */
-            *token = (Token){ chtostr(c, (char *)malloc(sizeof(char) * 2)), TOKEN_OPERATOR, 0 };
-            switch (c) {
-               case '(': token->type = TOKEN_LEFT_PARENS; break;
-               case ')': token->type = TOKEN_RIGHT_PARENS; break;
-               case '[': token->type = TOKEN_LEFT_SQUARE_BRACKET; break;
-               case ']': token->type = TOKEN_RIGHT_SQUARE_BRACKET; break;
-            }
-            return token->type;
+Token *next_token(char *line, int *pos) {
+   char *c = line + *pos; /* keep track of current position */
+   //printf("next_token:%s, %d\n", c, *pos);
+
+   /* ignore whitespace by moving to the next non-whitespace character */
+   while(*c && isspace(*c)) { ++c; ++(*pos); }
+
+   /* EOF */
+   if (*c == '\0') return create_eof_token();
+
+   /* keep track of where this token begins */
+   int start = (*pos)++; /* we increment pos because we already consumed c */
+   switch (*c) {
+      /* operator tokens */
+      case '*': case '/': case '+': case '-':
+      case '(': case ')': case '[': case ']': {
+         /* brackets have different opcodes */
+         int type = TOKEN_OPERATOR;
+         switch (*c) {
+            case '(': type = TOKEN_LEFT_PARENS; break;
+            case ')': type = TOKEN_RIGHT_PARENS; break;
+            case '[': type = TOKEN_LEFT_SQUARE_BRACKET; break;
+            case ']': type = TOKEN_RIGHT_SQUARE_BRACKET; break;
+
+            /* create a new operator token */
+            default: return create_operator_token(chtostr(*c), start);
          }
-
-         case '0': case '1': case '2': case '3': case '4': 
-         case '5': case '6': case '7': case '8': case '9': {
-            char numeric_buf[MAX_NUMERIC_TOKEN_SIZE] = { c, '\0' };
-            while (!feof(file) && isdigit(peek_next(file))) {
-               strapp(numeric_buf, c = getc(file));
-            }
-
-            char *token_value = (char *)malloc(sizeof(char) * strlen(numeric_buf));
-            strcpy(token_value, numeric_buf);
-            *token = (Token){ token_value, TOKEN_NUMERIC, 0 };
-            return TOKEN_NUMERIC;
-         }
-         
-         default:
-            if(isalpha(c)) { /* TODO: use case */
-               char name_buf[MAX_NAME_TOKEN_SIZE] = { c, '\0' };
-               while (!feof(file) && isalpha(peek_next(file))) {
-                  strapp(name_buf, c = getc(file));
-               }
-
-               char *token_value = (char *)malloc(sizeof(char) * strlen(name_buf));
-               strcpy(token_value, name_buf);
-               *token = (Token){ token_value, TOKEN_NAME, 0 };
-               return TOKEN_NAME;
-            } else {
-               /* TODO: unrecognized symbol */
-               return create_eof_token(token, 0)->type;
-            }
+         /* create a bracket token */
+         return create_unary_token(chtostr(*c), type, start);
       }
+
+      /* numeric tokens (TODO: handle decimal numbers) */
+      case '0': case '1': case '2': case '3': case '4': 
+      case '5': case '6': case '7': case '8': case '9': {
+         char num_buf[MAX_NUMERIC_TOKEN_SIZE] = { *c, '\0' };
+         while (*c && isdigit(peek_next(c))) {
+            strapp(num_buf, *(++c));
+            ++(*pos);
+         }
+
+         return create_unary_token(sp_str(num_buf), TOKEN_NUMERIC, start);
+      }
+      
+      default:
+         /* name tokens (TODO: change into a case jump) */
+         if (isalpha(*c)) { 
+            char name_buf[MAX_NAME_TOKEN_SIZE] = { *c, '\0' };
+            while (*c && isalpha(peek_next(c))) {
+               strapp(name_buf, *(++c));
+               ++(*pos); 
+            }
+
+            return create_unary_token(sp_str(name_buf), TOKEN_NAME, start); 
+         } else {
+            /* TODO: unrecognized symbol */
+            return create_eof_token();
+         }
    }
    
    /* we've reached EOF */
-   return create_eof_token(token, 0)->type;
+   return create_eof_token();
 }
 
-int parse_expr(FILE *file, Token *token_list);
-int parse_function(FILE *file, Token *token_list);
+SpError *parse_expr(char *line, int *pos, Token **token_list, int *length);
+SpError *parse_function(char *line, int *pos, Token **token_list, int *length);
 
-int parse_function(FILE *file, Token *token_list) {
-   int arg_count = 0;
-   Token token;
+SpError *parse_function(char *line, int *pos, Token **token_list, int *length) {
+   int arg_count = 0; /* number of arguments in this function */
+   Token *token = NULL;
 
-   if (next_token(file, &token) == TOKEN_NAME) {
-      /* TODO: check if a function name */
-      Token name_token = token;
-      
-      while (next_token(file, &token) != TOKEN_EOF) {
-         switch (token.type) {
-            case TOKEN_LEFT_SQUARE_BRACKET:
+   /* a function call must begin with TOKEN_NAME or TOKEN_OPERATOR, followed by args */
+   if (token = next_token(line, pos), 
+         (token->type == TOKEN_NAME || token->type == TOKEN_OPERATOR)) {
+      Token *name_token = token;
+     
+      /* parse the function arguments */
+      while (token = next_token(line, pos), token->type != TOKEN_EOF) {
+         switch (token->type) {
+            case TOKEN_LEFT_SQUARE_BRACKET: {
                /* a new function call */
-               arg_count += parse_function(file, &token_list[arg_count]);
+               SpError *err = parse_function(line, pos, token_list, length);
+               if (err) {
+                  free_token(name_token);
+                  return err;
+               }
                break;
+            }
             case TOKEN_RIGHT_SQUARE_BRACKET:
                /* this function call ended */
-               name_token.type = TOKEN_FUNCTION_CALL;
-               name_token.arity = arg_count;
-               token_list[arg_count++] = name_token;
-
-               return arg_count;
-            case TOKEN_LEFT_PARENS:
+               name_token->type = TOKEN_FUNCTION_CALL;
+               name_token->arity = arg_count;
+               token_list[(*length)++] = name_token;
+               
+               return NO_ERROR;
+            case TOKEN_LEFT_PARENS: {
                /* a new expr */
-               arg_count += parse_expr(file, &token_list[arg_count]);
+               SpError *err = parse_expr(line, pos, token_list, length);
+               if (err) {
+                  free_token(name_token);
+                  return err;
+               }
                break;
+            }
             default:
                /* an argument of this function */
-               token_list[arg_count++] = token;
+               token_list[(*length)++] = token;
          }
+
+         arg_count++;
       }
+   } else {
+      return PARSE_ERROR(sp_strf(MAX_ERROR_STRING_LENGTH, "%s cannot be used as a function", token->value));
    }
-   
-   /* TODO: function call required */
-   return 0;
+  
+   /* the function call wasn't complete */
+   return PARSE_ERROR(sp_str("Function call incomplete. Expected ']'"));
 }
 
-int parse_expr(FILE *file, Token *token_list) {
-   int num_tokens = 0; /* keeps track of how many tokens we've processed so far */
+SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
    TokenStack op_s = { 0 }; /* the delayed operator stack */
 
-   Token token;
-   while (next_token(file, &token) != TOKEN_EOF) {
-      switch (token.type) {
+   Token *token = NULL;
+   while (token = next_token(line, pos), token->type != TOKEN_EOF) {
+      switch (token->type) {
          case TOKEN_NUMERIC:
-            token_list[num_tokens++] = token;
+            token_list[(*length)++] = token;
             break;
          case TOKEN_OPERATOR: {
             /* identify the new operator, and the operator at the top of the stack
                pop the top operator if the new operator has a lower precedence than the top */
             Op *op_new = NULL, *op_top = NULL;
-            while ((op_new = get_op(token.value)) && 
+            while ((op_new = get_op(token->value)) && 
                    (op_top = stack_count(&op_s) ? get_op(stack_top(&op_s)->value) : NULL) &&
                   ((op_new->assoc == ASSOC_LEFT && op_new->prec <= op_top->prec) ||
                   (op_new->assoc == ASSOC_RIGHT && op_new->prec < op_top->prec))) {
                /* this means that op_top should be processed before op_new */
-               token_list[num_tokens++] = stack_pop(&op_s);
+               token_list[(*length)++] = stack_pop(&op_s);
             }
-            
+
             stack_push(&op_s, token);
             break;
          }
-         case TOKEN_LEFT_PARENS:
+         case TOKEN_LEFT_PARENS: {
             /* parsing a new expression */
-            num_tokens += parse_expr(file, &token_list[num_tokens]);
+            SpError *err = parse_expr(line, pos, token_list, length);
+            if (err) return err;
             break;
+         }
          case TOKEN_RIGHT_PARENS:
-            /* this has expression closed, so we return */
-            while (stack_count(&op_s)) {
-               token_list[num_tokens++] = stack_pop(&op_s);
-            }
-            return num_tokens;
-         case TOKEN_LEFT_SQUARE_BRACKET:
+            /* this has expression closed, so output the leftover operators */
+            while (stack_count(&op_s)) token_list[(*length)++] = stack_pop(&op_s);
+            return NO_ERROR;
+         case TOKEN_LEFT_SQUARE_BRACKET: {
             /* left square bracket, beginning of a function call */
-            num_tokens += parse_function(file, &token_list[num_tokens]);
+            SpError *err = parse_function(line, pos, token_list, length);
+            if (err) return err;
             break;
+         }
       }
    }
 
-   while (stack_count(&op_s)) {
-      token_list[num_tokens++] = stack_pop(&op_s);
-   }
-   
-   return num_tokens;
+   /* push the rest of the operators into the bytecode */ 
+   while (stack_count(&op_s)) token_list[(*length)++] = stack_pop(&op_s);
+   return NO_ERROR;
 }
 
 #endif

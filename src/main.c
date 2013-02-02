@@ -1,41 +1,69 @@
-#include <stdio.h>
-
 #include "include/parser.h"
 #include "include/vm.h"
+#include "include/io.h"
+
+#include <stdio.h>
 
 int main(int argc, const char * argv[]) {
-   FILE *in = fopen("script.sp", "r");
-   if (in) {
-      Token opcodes[100];
-      int num_tokens = parse_expr(in, opcodes);
-      printf("parsed %d tokens: \n", num_tokens);
+   /* TODO: use an external library to parse command lines */
+   if (argc == 1) {
+      /* initialize the base scope environment */
+      Scope *base_scope = new_scope(NULL, 0); /* no parent, with default buffer size */
 
-      int i;
-      for (i = 0; i < num_tokens; i++) {
-         printf("TYPE: %d, VALUE: %s, ARITY: %d\n", opcodes[i].type, opcodes[i].value, opcodes[i].arity);
+      /* initialize the object value stack */
+      ObjectStack ob_s = { 0 };
+
+      /* initialize native functions */
+
+      /* start the REPL */
+      char repl_buffer[MAX_LINE_BUFFER_SIZE];
+      Token *opcodes[MAX_LINE_NUM_OPCODES];
+
+      while (1) {
+         /* print the prompt and ask for input */
+         printf("=> ");
+         readline(repl_buffer, MAX_LINE_BUFFER_SIZE, stdin);
+
+         /* evaluate this line */
+         SpError *err;
+
+         /* check if an error was raised by parsing */
+         int pos = 0, num_opcodes = 0;
+         err = parse_expr(repl_buffer, &pos, opcodes, &num_opcodes);
+         if (err) {
+            printf("Parse Error: %s\n", err->message);
+            sp_free_error(err);
+            continue;
+         } else {
+            printf("successfully parsed %d opcodes: ", num_opcodes);
+            int i;
+            for (i = 0; i < num_opcodes; i++) printf("%s ", opcodes[i]->value);
+            printf("\n");
+         }
+
+         /* check if an error was raised by evaluating */
+         err = eval_bytecode(&ob_s, base_scope, opcodes, num_opcodes);
+
+         /* check if there was any errors caused by the evaluation */
+         if (err) {
+            printf("Runtime Error: %s\n", err->message);
+         
+            /* due to the early exit, we still need to clear the object stack */
+            while (ob_count(&ob_s)) sp_free_object(ob_pop(&ob_s));
+            sp_free_error(err);
+         } else if(ob_count(&ob_s) == 1) {
+            /* no errors, print the resulting value */
+            TObject *result = ob_pop(&ob_s);
+            sp_print_object(result);
+            sp_free_object(result);
+         }
+
+         /* free the memory used by the bytecode */
+         int i;
+         for (i = 0; i < num_opcodes; i++) {
+            free_token(opcodes[i]);
+         }
       }
-
-      /* evaluate */
-      ObjectStack st = { 0 };
-      Scope *scope = new_scope(NULL, 0);
-
-      GaRuntimeError *err = eval_bytecode(&st, scope, opcodes, num_tokens);
-      pop_scope(scope);
-
-      if (err) {
-         printf("RUNTIME ERROR: %s\n", err->message);
-         printf("--BAIL STACK--\n");
-         /* free all the objects currently on the eval stack */
-         while (ob_count(&st)) ga_free(ob_pop(&st));
-      } else {
-         if (ob_count(&st) == 1) {
-            TObject *result = ob_pop(&st);
-            ga_print_object(result);
-            ga_free_object(result);
-         } else RUNTIME_ERROR("More than one item left on the stack");
-      }
-   } else {
-      printf("fail");
    }
 
    return 0;

@@ -1,23 +1,26 @@
-//
-//  limits.h
-//  Kanu
-//
-//  Created by Darren Shen on 30/01/13.
-//  Copyright (c) 2013 Darren Shen. All rights reserved.
-//
+#ifndef SPOONER_LIMITS_H
+#define SPOONER_LIMITS_H
 
-#ifndef Kanu_limits_h
-#define Kanu_limits_h
+/* maximum length of token literals */
+#define MAX_NUMERIC_TOKEN_SIZE 128
+#define MAX_NAME_TOKEN_SIZE 128
 
-/* maximum length of a number literal */
-#define MAX_NUMERIC_TOKEN_SIZE 100
-#define MAX_NAME_TOKEN_SIZE 100
-
-#define MAX_OBJECT_STACK_SIZE 100
+/* maximum number of objects in the evaluation stack */
+#define MAX_OBJECT_STACK_SIZE 128
 
 /* max number of variables in a call frame */
-#define MAX_SCOPE_BUFFER_SIZE 10
+#define MAX_SCOPE_BUFFER_SIZE 128
 
-#define MAX_FUNCTION_ARGS 10
+/* maximum number of args in a function */
+#define MAX_FUNCTION_ARGS 8
+
+/* maximum number of characters in one line of code */
+#define MAX_LINE_BUFFER_SIZE 128
+
+/* maximum number of opcodes in one line of code */
+#define MAX_LINE_NUM_OPCODES 128
+
+/* maximum number of characters in an error message */
+#define MAX_ERROR_STRING_LENGTH 128
 
 #endif

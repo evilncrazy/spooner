@@ -1,16 +1,42 @@
-#ifndef ERRORS_H
-#define ERRORS_H
+#ifndef SPOONER_ERRORS_H
+#define SPOONER_ERRORS_H
 
+/* some macros */
+#define PARSE_ERROR(msg) sp_parser_error(msg)
+#define RUNTIME_ERROR(msg) sp_runtime_error(msg)
+#define NO_ERROR NULL
+
+/* different types of errors */
+enum { ERROR_PARSE, ERROR_RUNTIME };
+
+/* represents a runtime error */
 typedef struct {
-   const char *message;
+   int type; /* type of error e.g. parse, runtime */
+   char *message;
    int line_no;
    int col_no;
-} GaRuntimeError;
+} SpError;
 
-GaRuntimeError *ga_runtime_error(const char *msg) {
-   GaRuntimeError *err = (GaRuntimeError *)malloc(sizeof(GaRuntimeError));
+/* creates a runtime error */
+SpError *sp_runtime_error(char *msg) {
+   SpError *err = (SpError *)sp_malloc(sizeof(SpError));
+   err->type = ERROR_RUNTIME;
    err->message = msg;
    return err;
+}
+
+/* creates a parser error */
+SpError *sp_parser_error(char *msg) {
+   SpError *err = (SpError *)sp_malloc(sizeof(SpError));
+   err->type = ERROR_PARSE;
+   err->message = msg;
+   return err;
+}
+
+/* free a dynamically allocated error message */
+void sp_free_error(SpError *err) {
+   sp_free(err->message);
+   sp_free(err);
 }
 
 #endif

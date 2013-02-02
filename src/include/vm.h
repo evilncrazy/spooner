@@ -1,8 +1,5 @@
-#ifndef VM_H
-#define VM_H
-
-#define RUNTIME_ERROR(str) (ga_runtime_error(str))
-#define NO_ERROR NULL
+#ifndef SPOONER_VM_H
+#define SPOONER_VM_H
 
 #include "memory.h"
 #include "values.h"
@@ -11,24 +8,28 @@
 #include "env.h"
 #include "strings.h"
 
+/* we reuse Tokens as Opcodes */
 typedef Token Opcode;
 
+/* stack containing the operand objects */
 typedef struct {
    int count;
    TObject *st[MAX_OBJECT_STACK_SIZE];
 } ObjectStack;
 
+/* TODO: put native functions in a separate file */
+/* a function natively implemented in the interpreter */
 typedef struct {
    const char *name;
-   GaRuntimeError *(*eval)(Scope *scope, int arity, TObject **result);
+   SpError *(*eval)(Scope *scope, int arity, TObject **result);
 } NativeFunction;
 
-GaRuntimeError *native_add(Scope *scope, int arity, TObject **result) {
+SpError *native_add(Scope *scope, int arity, TObject **result) {
    TObject *a = resolve_name(scope, "$0");
    TObject *b = resolve_name(scope, "$1");
 
    if (a && a->type == T_INT && b && b->type == T_INT) {
-      *result = ga_create_int(a->v.n + b->v.n); 
+      *result = sp_create_int(a->v.n + b->v.n); 
       return NO_ERROR;
    } else return RUNTIME_ERROR("SO CEEBS");
 }
@@ -47,30 +48,32 @@ NativeFunction *find_native_function(char *name) {
    return NULL;
 }
 
+/* object stack manipulation */
 void ob_push(ObjectStack *st, TObject *obj) { st->st[st->count++] = obj; }
 TObject *ob_pop(ObjectStack *st) { return st->st[--st->count]; }
 int ob_count(ObjectStack *st) { return st->count; }
-GaRuntimeError *eval_bytecode(ObjectStack *ob_s, Scope *scope, Opcode *bytecode, int length);
+SpError *eval_bytecode(ObjectStack *ob_s, Scope *scope, Opcode **bytecode, int length);
 
+/* precondition: ob_s has at least arity number of objects */
 Scope *create_call_scope(ObjectStack *ob_s, Scope *scope, int arity) {
    Scope *call_scope = new_scope(scope, 0);
 
    int i;
    for (i = 0; i < arity; i++) {
       declare_local(call_scope, 
-         ga_create_object_ref(ob_pop(ob_s), allocstrf(MAX_FUNCTION_ARGS + 2, "$%d", i)));
+         sp_create_object_ref(ob_pop(ob_s), sp_strf(MAX_FUNCTION_ARGS + 2, "$%d", i)));
    }
 
    return call_scope;
 }
 
 /* calls function f and push result on to the stack */
-GaRuntimeError *call_function(ObjectStack *ob_s, Scope *scope, TFunction *f, int arity) {
+SpError *call_function(ObjectStack *ob_s, Scope *scope, TFunction *f, int arity) {
    /* create the call scope */
    Scope *call_scope = create_call_scope(ob_s, scope, arity);
 
    /* we evaluate the function opcodes */
-   GaRuntimeError *err = eval_bytecode(ob_s, call_scope, f->bytecode, f->length);
+   SpError *err = eval_bytecode(ob_s, call_scope, &f->bytecode, f->length);
    if (err) return err;
 
    /* destroy the call scope */
@@ -79,8 +82,12 @@ GaRuntimeError *call_function(ObjectStack *ob_s, Scope *scope, TFunction *f, int
    return NO_ERROR;
 }
 
-GaRuntimeError *call_function_by_name(ObjectStack *ob_s, Scope *scope, char *name, int arity) {
-   /* check if this function is native first */
+SpError *call_function_by_name(ObjectStack *ob_s, Scope *scope, char *name, int arity) {
+   /* check if we have enough arguments */
+   if (ob_count(ob_s) < arity) 
+      return RUNTIME_ERROR(sp_strf(MAX_ERROR_STRING_LENGTH, "Not enough arguments for function '%s'", name));
+
+   /* check if this function is native */
    NativeFunction *native_f = find_native_function(name);
    if (native_f) {
       /* create the call scope */
@@ -88,7 +95,7 @@ GaRuntimeError *call_function_by_name(ObjectStack *ob_s, Scope *scope, char *nam
 
       /* evaluate the function */
       TObject *result = NULL;
-      GaRuntimeError *err = native_f->eval(call_scope, arity, &result);
+      SpError *err = native_f->eval(call_scope, arity, &result);
       ob_push(ob_s, result);
 
       /* destroy the call scope */
@@ -96,7 +103,7 @@ GaRuntimeError *call_function_by_name(ObjectStack *ob_s, Scope *scope, char *nam
 
       return err;
    } else {
-      /* nope, this is a user defined function */
+      /* nope, this is a environment function */
       TObject *obj = resolve_name(scope, name);
       if (obj == NULL) return RUNTIME_ERROR("Not found!");
       if (obj->type != T_FUNCTION) return RUNTIME_ERROR("Not callable");
@@ -105,25 +112,34 @@ GaRuntimeError *call_function_by_name(ObjectStack *ob_s, Scope *scope, char *nam
 }
 
 /* evals bytecode and pushes result on to the stack */
-GaRuntimeError *eval_bytecode(ObjectStack *ob_s, Scope *scope, Opcode *bytecode, int length) {
+SpError *eval_bytecode(ObjectStack *ob_s, Scope *scope, Opcode **bytecode, int length) {
    int i;
    for (i = 0; i < length; i++) {
-      switch (bytecode[i].type) {
+      Opcode opcode = *bytecode[i];
+      printf("opcode %d: %s\n", opcode.type, opcode.value);
+      switch (opcode.type) {
          case TOKEN_NUMERIC:
-            printf("PUSHED %d\n", atoi(bytecode[i].value));
-            ob_push(ob_s, ga_create_int(atoi(bytecode[i].value)));
+            printf("PUSHED %d\n", atoi(opcode.value));
+            ob_push(ob_s, sp_create_int(atoi(opcode.value)));
             break;
          case TOKEN_OPERATOR: {
             /* all operators are just binary function calls.
                we get the function associated with this operator
                and call it */
-            Op *op = get_op(bytecode[i].value);
+            Op *op = get_op(opcode.value);
             if (op->func_name == NULL)
                return RUNTIME_ERROR("Operator not supported"); 
-            return call_function_by_name(ob_s, scope, op->func_name, 2);  
+            
+            /* call the underlying function used by the operator */
+            SpError *err = call_function_by_name(ob_s, scope, op->func_name, 2);  
+            if (err) return err;
+            break;
          }
-         case TOKEN_FUNCTION_CALL:
-            return call_function_by_name(ob_s, scope, bytecode[i].value, bytecode[i].arity);
+         case TOKEN_FUNCTION_CALL: {
+            SpError *err = call_function_by_name(ob_s, scope, opcode.value, opcode.arity);
+            if (err) return err;
+            break;
+         }
       }
    }
 

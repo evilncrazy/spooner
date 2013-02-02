@@ -22,10 +22,6 @@ Op ops[] = {
    { "/", 10, ASSOC_LEFT, "/" },
    { "+", 5, ASSOC_LEFT, "+" },
    { "-", 5, ASSOC_LEFT, "-" },
-
-   /* parentheses are special cases */
-   { "(", 0, ASSOC_NONE },
-   { ")", 0, ASSOC_NONE }
 };
 
 /* returns a pointer to the Op operator object represented by str */
