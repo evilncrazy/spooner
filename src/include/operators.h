@@ -3,7 +3,6 @@
 
 #include <string.h>
 
-#include "values.h"
 #include "errors.h"
 
 enum { ASSOC_NONE, ASSOC_LEFT, ASSOC_RIGHT };

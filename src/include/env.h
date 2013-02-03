@@ -2,7 +2,7 @@
 #define ENV_H
 
 #include "memory.h"
-#include "values.h"
+#include "objects.h"
 #include "limits.h"
 
 /* scoping */
