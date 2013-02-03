@@ -34,7 +34,7 @@ int main(int argc, const char * argv[]) {
          else if(repl_buffer[0] == '[')
             err = parse_function(repl_buffer + 1, &pos, opcodes, &num_opcodes);
          else {
-            err = PARSE_ERROR(sp_str("Expected '(' or '['"));
+            err = PARSE_ERROR("Expected '(' or '['");
          }
 
          if (err) {
@@ -44,7 +44,7 @@ int main(int argc, const char * argv[]) {
          } else {
             printf("successfully parsed %d opcodes: ", num_opcodes);
             int i;
-            for (i = 0; i < num_opcodes; i++) printf("%s-%d ", opcodes[i]->value, opcodes[i]->arity);
+            for (i = 0; i < num_opcodes; i++) printf("%s ", opcodes[i]->value);
             printf("\n");
          }
 

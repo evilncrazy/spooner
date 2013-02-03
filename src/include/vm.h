@@ -60,8 +60,10 @@ Scope *create_call_scope(ObjectStack *ob_s, Scope *scope, int arity) {
 
    int i;
    for (i = 0; i < arity; i++) {
-      declare_local(call_scope, 
-         sp_create_object_ref(ob_pop(ob_s), sp_strf(MAX_FUNCTION_ARGS + 2, "$%d", i)));
+      /* declare special local variables to hold the arguments */
+      /* TODO: in the future, there will only be $_, which is a special array
+         to hold the arguments (requires array data type) */
+      declare_local(call_scope, sp_create_object_ref(ob_pop(ob_s), sp_strf("$%d", i)));
    }
 
    return call_scope;
@@ -85,7 +87,7 @@ SpError *call_function(ObjectStack *ob_s, Scope *scope, TFunction *f, int arity)
 SpError *call_function_by_name(ObjectStack *ob_s, Scope *scope, char *name, int arity) {
    /* check if we have enough arguments */
    if (ob_count(ob_s) < arity) 
-      return RUNTIME_ERROR(sp_strf(MAX_ERROR_STRING_LENGTH, "Not enough arguments for function '%s'", name));
+      return RUNTIME_ERROR("Not enough arguments for function '%s'", name);
 
    /* check if this function is native */
    NativeFunction *native_f = find_native_function(name);

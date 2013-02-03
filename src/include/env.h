@@ -41,7 +41,6 @@ Scope *pop_scope(Scope *scope) {
 
 void declare_local(Scope *scope, TObjectRef *ref) {
    scope->objects[scope->num_objects++] = *ref;
-   printf("declared local %s %d\n", ref->name, ref->value->type);
 }
 
 TObject *resolve_name(Scope *scope, char *name) {

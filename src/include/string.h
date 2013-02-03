@@ -7,12 +7,18 @@
 #include "memory.h"
 
 /* sprintf with a dynamically allocated string */
-char *sp_strf(int length, char *format, ...) {
-   char *str = (char *)sp_malloc(length * sizeof(char));
+char *sp_strf(char *format, ...) {
+   char buffer[1024] = { 0 }; /* TODO: not sure of how to set the buffer size */
+   
+   /* use vsprintf to format the string */
    va_list args;
    va_start(args, format);
-   vsprintf(str, format, args);
+   vsprintf(buffer, format, args);
    va_end(args);
+
+   /* dynamically allocate a new version of this string */
+   char *str = (char *)sp_malloc(strlen(buffer) * sizeof(char));
+   strcpy(str, buffer);
    return str;
 }
 

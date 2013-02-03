@@ -2,8 +2,8 @@
 #define SPOONER_ERRORS_H
 
 /* some macros */
-#define PARSE_ERROR(msg) sp_parser_error(msg)
-#define RUNTIME_ERROR(msg) sp_runtime_error(msg)
+#define PARSE_ERROR(msg, ...) sp_parser_error(sp_strf(msg, ##__VA_ARGS__))
+#define RUNTIME_ERROR(msg, ...) sp_runtime_error(sp_strf(msg, ##__VA_ARGS__))
 #define NO_ERROR NULL
 
 /* different types of errors */

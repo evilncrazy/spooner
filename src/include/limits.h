@@ -21,6 +21,6 @@
 #define MAX_LINE_NUM_OPCODES 128
 
 /* maximum number of characters in an error message */
-#define MAX_ERROR_STRING_LENGTH 128
+#define MAX_ERROR_MSG_LENGTH 128
 
 #endif

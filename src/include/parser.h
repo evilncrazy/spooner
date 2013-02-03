@@ -132,11 +132,11 @@ SpError *parse_function(char *line, int *pos, Token **token_list, int *length) {
          arg_count++;
       }
    } else {
-      return PARSE_ERROR(sp_strf(MAX_ERROR_STRING_LENGTH, "%s cannot be used as a function", token->value));
+      return PARSE_ERROR("%s cannot be used as a function", token->value);
    }
   
    /* the function call wasn't complete */
-   return PARSE_ERROR(sp_str("Function call incomplete. Expected ']'"));
+   return PARSE_ERROR("Function call incomplete. Expected ']'");
 }
 
 SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
@@ -176,9 +176,7 @@ SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
          }
          case TOKEN_RIGHT_PARENS:
             /* this has expression closed */
-            /* if the previous token is an operator, then it means that the expression
-               ends with an operator i.e. the operator is postfix */
-            if (prev_token->type == TOKEN_OPERATOR) prev_token->arity = -1;
+            /* TODO: possibly in the far future, have post-fix operators */
 
             /* output the leftover operators */
             while (stack_count(&op_s)) token_list[(*length)++] = stack_pop(&op_s);
@@ -197,7 +195,7 @@ SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
    /* we arrive here if we hit an EOF before we see a right parenthesis
       which means this expression is not closed. This should never happen
       if the REPL balances the expressions for us */
-   return RUNTIME_ERROR(sp_str("Expected ')' at end of expression"));
+   return PARSE_ERROR("Expected ')' at end of expression");
 }
 
 #endif
