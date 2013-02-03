@@ -29,7 +29,14 @@ int main(int argc, const char * argv[]) {
 
          /* check if an error was raised by parsing */
          int pos = 0, num_opcodes = 0;
-         err = parse_expr(repl_buffer, &pos, opcodes, &num_opcodes);
+         if (repl_buffer[0] == '(')
+            err = parse_expr(repl_buffer + 1, &pos, opcodes, &num_opcodes);
+         else if(repl_buffer[0] == '[')
+            err = parse_function(repl_buffer + 1, &pos, opcodes, &num_opcodes);
+         else {
+            err = PARSE_ERROR(sp_str("Expected '(' or '['"));
+         }
+
          if (err) {
             printf("Parse Error: %s\n", err->message);
             sp_free_error(err);
@@ -37,7 +44,7 @@ int main(int argc, const char * argv[]) {
          } else {
             printf("successfully parsed %d opcodes: ", num_opcodes);
             int i;
-            for (i = 0; i < num_opcodes; i++) printf("%s ", opcodes[i]->value);
+            for (i = 0; i < num_opcodes; i++) printf("%s-%d ", opcodes[i]->value, opcodes[i]->arity);
             printf("\n");
          }
 

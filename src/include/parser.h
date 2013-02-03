@@ -142,13 +142,17 @@ SpError *parse_function(char *line, int *pos, Token **token_list, int *length) {
 SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
    TokenStack op_s = { 0 }; /* the delayed operator stack */
 
-   Token *token = NULL;
+   Token *token = NULL, *prev_token = NULL;
    while (token = next_token(line, pos), token->type != TOKEN_EOF) {
       switch (token->type) {
          case TOKEN_NUMERIC:
             token_list[(*length)++] = token;
             break;
          case TOKEN_OPERATOR: {
+            /* if the previous token is NULL, then that means this operator is
+               the first token in an expr i.e. it is a prefix operator */
+            if (prev_token == NULL) token->arity = 1;
+
             /* identify the new operator, and the operator at the top of the stack
                pop the top operator if the new operator has a lower precedence than the top */
             Op *op_new = NULL, *op_top = NULL;
@@ -160,6 +164,7 @@ SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
                token_list[(*length)++] = stack_pop(&op_s);
             }
 
+            /* finally, push the new token on to the stack */
             stack_push(&op_s, token);
             break;
          }
@@ -170,7 +175,12 @@ SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
             break;
          }
          case TOKEN_RIGHT_PARENS:
-            /* this has expression closed, so output the leftover operators */
+            /* this has expression closed */
+            /* if the previous token is an operator, then it means that the expression
+               ends with an operator i.e. the operator is postfix */
+            if (prev_token->type == TOKEN_OPERATOR) prev_token->arity = -1;
+
+            /* output the leftover operators */
             while (stack_count(&op_s)) token_list[(*length)++] = stack_pop(&op_s);
             return NO_ERROR;
          case TOKEN_LEFT_SQUARE_BRACKET: {
@@ -180,11 +190,14 @@ SpError *parse_expr(char *line, int *pos, Token **token_list, int* length) {
             break;
          }
       }
+
+      prev_token = token;
    }
 
-   /* push the rest of the operators into the bytecode */ 
-   while (stack_count(&op_s)) token_list[(*length)++] = stack_pop(&op_s);
-   return NO_ERROR;
+   /* we arrive here if we hit an EOF before we see a right parenthesis
+      which means this expression is not closed. This should never happen
+      if the REPL balances the expressions for us */
+   return RUNTIME_ERROR(sp_str("Expected ')' at end of expression"));
 }
 
 #endif
