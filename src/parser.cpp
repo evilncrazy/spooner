@@ -7,7 +7,15 @@
 #include "include/operator.h"
 #include "include/error.h"
 
-SpParser::SpParser(std::string source) : source_(source), it_(source.cbegin()) { }
+SpParser::SpParser() {
+   /* initialize the operators table */
+   operators_ = std::unordered_map<std::string, SpOperator> ({
+      { "*", SpOperator("*", 10, ASSOC_LEFT, "*") },
+      { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
+      { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
+      { "-", SpOperator("-", 5, ASSOC_LEFT, "-") }
+   });
+}
 
 SpParser::~SpParser() {
    for (size_t i = 0; i < token_list_.size(); i++) {
@@ -15,18 +23,18 @@ SpParser::~SpParser() {
    }
 }
 
-SpOperator *SpParser::find_operator(const std::string value) {
-   /* check if the operators have been initialized */
-   if (operators_.size() == 0) {
-      operators_ = std::unordered_map<std::string, SpOperator> ({
-         { "*", SpOperator("*", 10, ASSOC_LEFT, "*") },
-         { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
-         { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
-         { "-", SpOperator("-", 5, ASSOC_LEFT, "-") }
-      });
-   }
+void SpParser::load(const std::string source) {
+   source_ = source;
+   it_ = source.cbegin();
 
-   /* now, find the operator in the hash table */
+   /* delete any existing token list */
+   for (size_t i = 0; i < token_list_.size(); i++) {
+      delete token_list_[i];
+   }
+}
+
+SpOperator *SpParser::find_operator(const std::string value) {
+   /* find the operator in the hash table */
    auto result = operators_.find(value);
    if (result != operators_.end()) {
       return &result->second;

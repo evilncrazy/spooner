@@ -19,17 +19,20 @@ class SpParser {
    TokenList token_list_;
 
    std::unordered_map<std::string, SpOperator> operators_;
-   SpOperator *find_operator(const std::string value);
 
    char peek_next();
    SpToken *next_token();
 
   public:
-   SpParser(std::string source);
+   SpParser();
    ~SpParser();
+
+   void load(const std::string source);
 
    SpError *parse_expr();
    SpError *parse_function();
+
+   SpOperator *find_operator(const std::string value);
 
    std::string source() const { return source_; }
    StrIter current() const { return it_; }
