@@ -5,7 +5,8 @@ SpVM::SpVM(SpParser *parser) : cur_env_(new SpEnv(NULL)), parser_(parser) { }
 void SpVM::set_call_env(const SpFunction *func, const int arity) {
    cur_env_ = new SpEnv(env());
 
-   for (int i = 0; i < arity; i++) {
+   /* TODO: declare a special variable to hold the function name */
+   for (int i = 1; i <= arity; i++) {
       /* declare special local variables to hold the arguments */
       /* TODO: in the future, there will only be $_, which is a special array
          to hold the arguments (requires array data type) */
@@ -85,12 +86,12 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             SpOperator *op = parser_->find_operator((*it)->value());
             if (op->func_name() == "") return RUNTIME_ERROR("Operator not supported");
             
-            SpError *err = call_function_by_name(op->func_name());
+            SpError *err = call_function_by_name(op->func_name(), (*it)->arity());
             if (err) return err;
             break;
          }
          case TOKEN_FUNCTION_CALL: {
-            SpError *err = call_function_by_name((*it)->value());
+            SpError *err = call_function_by_name((*it)->value(), (*it)->arity());
             if (err) return err;
             break;
          }
@@ -115,5 +116,6 @@ void SpVM::clear_objects() {
       SpObject *top = obj_s_.top();
       obj_s_.pop();
       delete top;
+      top = NULL;
    }
 }
