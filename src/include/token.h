@@ -2,6 +2,7 @@
 #define SPOONER_TOKENS_H
 
 #include <string>
+#include <vector>
 
 enum TokenType {
    TOKEN_EOF, TOKEN_UNKNOWN, TOKEN_NUMERIC, TOKEN_CHAR, TOKEN_STRING, TOKEN_OPERATOR,
@@ -27,5 +28,7 @@ class SpToken {
 
    void set_arity(const int v) { arity_ = v; }
 };
+
+typedef std::vector<SpToken *>::const_iterator TokenIter;
 
 #endif
