@@ -3,11 +3,11 @@ CFLAGS = -Wall -Wextra -pedantic -std=c++0x -g
 SF = ../src
 HF = ../src/include
 BF = ../bin
-OB = operator.o parser.o error.o env.o object.o token.o main.o
+OB = operator.o parser.o error.o env.o object.o token.o vm.o main.o
 
 all : $(BF)/spooner
 
-main.o : $(SF)/main.cpp $(HF)/env.h $(HF)/error.h $(HF)/object.h $(HF)/parser.h $(HF)/token.h $(HF)/operator.h
+main.o : $(SF)/main.cpp $(HF)/env.h $(HF)/error.h $(HF)/object.h $(HF)/parser.h $(HF)/token.h $(HF)/operator.h $(HF)/vm.h
 	$(CC) $(CFLAGS) -c $(SF)/main.cpp
 
 env.o : $(SF)/env.cpp $(HF)/env.h
@@ -27,6 +27,9 @@ token.o : $(SF)/token.cpp $(HF)/token.h
 
 operator.o : $(SF)/operator.cpp $(HF)/operator.h
 	$(CC) $(CFLAGS) -c $(SF)/operator.cpp
+
+vm.o : $(SF)/vm.cpp $(HF)/object.h $(HF)/env.h $(HF)/parser.h $(HF)/error.h $(HF)/operator.h
+	$(CC) $(CFLAGS) -c $(SF)/vm.cpp
 
 $(BF)/spooner : $(OB)
 	$(CC) $(OB) -o $(BF)/spooner

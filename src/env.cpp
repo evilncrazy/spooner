@@ -1,7 +1,12 @@
 #include "include/env.h"
 
+SpEnv::~SpEnv() {
+   /* free all the objects */
+   /* TODO: MEMORY LEAK! */
+}
+
 void SpEnv::bind_name(std::string name, SpObject *obj) {
-   objects_.emplace(name, obj);
+   objects_.insert(std::make_pair(name, obj));
 }
 
 SpObject *SpEnv::resolve_name(std::string name) {

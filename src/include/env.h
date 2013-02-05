@@ -5,6 +5,7 @@
 #include "limits.h"
 
 #include <unordered_map>
+#include <string>
 
 class SpEnv;
 class SpEnv {
@@ -16,6 +17,7 @@ class SpEnv {
    explicit SpEnv(SpEnv *parent) :
       depth_(parent ? parent->depth() + 1 : 0), 
       parent_(parent) { }
+   ~SpEnv();
 
    int depth() const { return depth_; }
    SpEnv *parent() const { return parent_; }
