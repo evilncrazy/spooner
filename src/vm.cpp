@@ -1,6 +1,6 @@
 #include "include/vm.h"
 
-SpVM::SpVM(SpParser *parser) : parser_(parser) { }
+SpVM::SpVM(SpParser *parser) : cur_env_(new SpEnv(NULL)), parser_(parser) { }
 
 void SpVM::set_call_env(const SpFunction *func, const int arity) {
    cur_env_ = new SpEnv(env());
