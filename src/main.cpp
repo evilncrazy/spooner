@@ -1,23 +1,22 @@
+#include "include/parser.h"
+#include "include/error.h"
+#include "include/env.h"
+#include "include/token.h"
+#include "include/object.h"
+#include "include/vm.h"
+
 #include <cstdio>
 #include <stack>
 #include <vector>
 #include <iostream>
 #include <string>
 
-#include "include/parser.h"
-#include "include/error.h"
-#include "include/env.h"
-#include "include/token.h"
-#include "include/object.h"
-
 int main(int argc, const char * argv[]) {
    /* TODO: use an external library to parse command lines */
    if (argc == 1) {
-      /* initialize the base global environment */
-      SpEnv base_scope(NULL); 
-
-      /* initialize the object value stack */
-      std::stack<SpObject *> ob_s;
+      /* initialize the parser and VM */
+      SpParser parser;
+      SpVM vm(&parser);
 
       /* initialize native functions */
 
@@ -31,7 +30,7 @@ int main(int argc, const char * argv[]) {
 
          /* evaluate this line */
          char first = input[0];
-         SpParser parser(input.substr(1));
+         parser.load(input.substr(1));
          SpError *err = NULL;
 
          /* check if an error was raised by parsing */
@@ -43,7 +42,7 @@ int main(int argc, const char * argv[]) {
             err = PARSE_ERROR("Expected '(' or '['");
 
          if (err) {
-            printf("Parse Error: %s", err->message().c_str());
+            printf("Parse Error: %s\n", err->message().c_str());
             delete err;
             continue;
          } else {
@@ -54,20 +53,20 @@ int main(int argc, const char * argv[]) {
             printf("\n");
          }
 
-         /* evaluate the bytecode 
-         err = eval_bytecode(ob_s, base_scope, opcodes);
-         if (ob_s.size() == 1) {
-            TObject *result = ob_s.top(); ob_s.pop();
-            result->print_self();
-         } else {
-            err = RUNTIME_ERROR("Left-over objects in stacks");
-         }*/
+         /* evaluate the bytecode */
+         err = vm.eval(parser.cbegin_token(), parser.cend_token());
 
          /* check if there was any errors caused by the evaluation */
-         /*if (err) {
-            printf("Runtime Error: %s\n", err->message);
+         if (err) {
+            printf("Runtime Error: %s\n", err->message().c_str());
             continue;
-         }*/
+         }
+
+         if (vm.top_object()) {
+            SpObject *result = vm.top_object();
+            result->print_self();
+            vm.clear_objects();
+         } else printf("NULL RETURN VALUE\n");
       }
    }
 
