@@ -18,9 +18,7 @@ SpParser::SpParser() {
 }
 
 SpParser::~SpParser() {
-   for (size_t i = 0; i < token_list_.size(); i++) {
-      delete token_list_[i];
-   }
+   while (!token_list_.empty()) delete token_list_.back(), token_list_.pop_back();
 }
 
 void SpParser::load(const std::string source) {
@@ -28,9 +26,7 @@ void SpParser::load(const std::string source) {
    it_ = source.cbegin();
 
    /* delete any existing token list */
-   for (size_t i = 0; i < token_list_.size(); i++) {
-      delete token_list_[i];
-   }
+   while (!token_list_.empty()) delete token_list_.back(), token_list_.pop_back();
 }
 
 SpOperator *SpParser::find_operator(const std::string value) {
