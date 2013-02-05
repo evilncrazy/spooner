@@ -11,6 +11,19 @@
 #include <iostream>
 #include <string>
 
+void init_native_functions(SpEnv* base) {
+   /* arithmetic functions */
+   base->bind_name("+", SpObject::create_native_func([] (SpEnv* env, const int arity) -> SpError* {
+      int sum = 0;
+      for (int i = 1; i <= arity; i++) {
+         SpObject *obj = env->resolve_name(std::string("$") + std::to_string(i));
+         if (obj && obj->type() == T_INT) sum += obj->as_int();
+      }
+      env->bind_name("$$", SpObject::create_int(sum));
+      return NO_ERROR;
+   }));
+}
+
 int main(int argc, const char * argv[]) {
    /* TODO: use an external library to parse command lines */
    if (argc == 1) {
@@ -19,6 +32,7 @@ int main(int argc, const char * argv[]) {
       SpVM vm(&parser);
 
       /* initialize native functions */
+      init_native_functions(vm.env());
 
       /* start the REPL */
       std::string input;
