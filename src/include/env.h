@@ -6,13 +6,17 @@
 
 #include <unordered_map>
 #include <string>
+#include <vector>
 
 class SpEnv;
 class SpEnv {
   private:
    int depth_; /* how many parents this environment has */
    SpEnv *parent_;
-   std::unordered_map<std::string, SpObject *> objects_;
+   std::unordered_map<std::string, SpObject *> object_map_;
+
+   /* used to iterate through all the environment objects */
+   std::vector<SpObject *> object_list_;
   public:
    explicit SpEnv(SpEnv *parent) :
       depth_(parent ? parent->depth() + 1 : 0), 

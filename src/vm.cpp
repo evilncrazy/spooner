@@ -55,7 +55,7 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
          if (err) return err;
 
          /* retrieve the return value */
-         push_object(env()->resolve_name("$$"));
+         push_object(env()->resolve_name("$$")->deep_clone());
       } else {
          /* evaluate this function */
          SpError *err = call_function(obj->as_func(), arity);

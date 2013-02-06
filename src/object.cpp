@@ -35,8 +35,8 @@ SpObject *SpObject::create_native_func(SpNative native) {
    return new SpObject(T_FUNCTION, native_val);
 }
 
-SpObject *SpObject::deep_clone(const SpObject *obj) {
-   return new SpObject(obj->type(), obj->val());
+SpObject *SpObject::deep_clone() const {
+   return new SpObject(type(), val());
 }
 
 void SpObject::print_self() {

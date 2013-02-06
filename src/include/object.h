@@ -48,7 +48,8 @@ class SpObject {
 
    static SpObject *create_int(const int value);
    static SpObject *create_native_func(SpNative native);
-   static SpObject *deep_clone(const SpObject *obj);
+
+   SpObject *deep_clone() const;
 
    ObjectType type() const { return type_; }
    Value val() const { return v_; }
