@@ -6,13 +6,20 @@ void SpVM::set_call_env(const SpFunction *func, const int arity) {
    cur_env_ = new SpEnv(env());
 
    /* TODO: declare a special variable to hold the function name */
-   for (int i = 1; i <= arity; i++) {
-      /* declare special local variables to hold the arguments */
-      /* TODO: in the future, there will only be $_, which is a special array
-         to hold the arguments (requires array data type) */
-      env()->bind_name(std::string("$") + std::to_string(i), obj_s_.top());
+
+   /* declare special $_ local variable to hold the arguments */
+   std::vector<SpObject *> args;
+   for (int i = 0; i < arity; i++) {
+      args.push_back(obj_s_.top()); 
       obj_s_.pop();
    }
+   
+   SpList arg_list;
+   for (int i = 0; i < arity; i++) {
+      arg_list.append(args.back());
+      args.pop_back();
+   }
+   env()->bind_name("$_", SpObject::create_list(arg_list));
 }
 
 void SpVM::close_env() {
@@ -50,7 +57,7 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
       /* check if this is a native function */
       if (obj->as_func()->is_native()) {
          /* evaluate this native function */
-         SpError *err = obj->as_func()->native_call(env(), arity);
+         SpError *err = obj->as_func()->native_call(env());
 
          if (err) return err;
 
