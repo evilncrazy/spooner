@@ -15,12 +15,12 @@ SpEnv::~SpEnv() {
    object_map_.clear();
 }
 
-void SpEnv::bind_name(std::string name, SpObject *obj) {
+void SpEnv::bind_name(const std::string name, SpObject *obj) {
    object_map_.insert(std::make_pair(name, obj));
    object_list_.push_back(obj);
 }
 
-SpObject *SpEnv::resolve_name(std::string name) {
+SpObject *SpEnv::resolve_name(const std::string name) {
    auto result = object_map_.find(name);
    if (result != object_map_.end())
       return result->second;

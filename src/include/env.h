@@ -26,8 +26,8 @@ class SpEnv {
    int depth() const { return depth_; }
    SpEnv *parent() const { return parent_; }
 
-   void bind_name(std::string name, SpObject *obj);
-   SpObject *resolve_name(std::string name);
+   void bind_name(const std::string name, SpObject *obj);
+   SpObject *resolve_name(const std::string name);
 };
 
 #endif
