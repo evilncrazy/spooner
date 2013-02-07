@@ -12,7 +12,8 @@ class SpEnv;
 typedef SpError *(*SpNative)(SpEnv *env);
 
 enum ObjectType {
-   T_NULL, T_BOOL, T_INT, T_CHAR, T_DECIMAL, T_STRING, T_FUNCTION, T_REF, T_LIST 
+   T_NULL, T_BOOL, T_INT, T_CHAR, T_DECIMAL, T_STRING, T_FUNCTION, T_REF, T_LIST,
+   T_NAME
 };
 
 /* forward decl of object */
@@ -71,11 +72,14 @@ class SpObject {
    static SpObject *create_int(const int value);
    static SpObject *create_bool(const bool value);
    static SpObject *create_char(const char value);
+   static SpObject *create_name(const std::string &name);
    static SpObject *create_list(const SpList value);
    static SpObject *create_native_func(SpNative native);
 
    SpObject *shallow_clone() const;
    SpObject *deep_clone() const;
+
+   bool equals(const SpObject *obj, const bool strict = false) const;
 
    ObjectType type() const { return type_; }
    Value val() const { return v_; }
@@ -83,6 +87,7 @@ class SpObject {
    int as_int() const { return v_.n; }
    bool as_bool() const { return v_.n ? true : false; }
    char as_char() const { return (char)v_.n; }
+   char *as_name() const { return (char *)(v_.g); }
    SpList *as_list() const { return v_.l; }
    SpFunction *as_func() const { return v_.f; }
 
