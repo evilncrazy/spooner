@@ -12,9 +12,13 @@
 #include <string>
 
 /* horrible macro for creating native functions through lambda syntax */
-#define NATIVE_FUNC(code) SpObject::create_native_func([] (SpEnv *env) -> SpError* { code return NO_ERROR; }) 
+#define NATIVE_FUNC(code) SpObject::create_native_func(NULL, [] (SpEnv *env) -> SpError* { \
+   code \
+   return NO_ERROR; \
+}) 
 
 void init_native_functions(SpEnv* base) {
+   /* TODO: use patterns for native functions */
    /* arithmetic functions */
    base->bind_name("+", NATIVE_FUNC(
       int sum = 0;
@@ -44,7 +48,13 @@ void init_native_functions(SpEnv* base) {
    base->bind_name("append", NATIVE_FUNC(
       SpList *args = env->resolve_name("$_")->as_list();
 
-      SpList *head = args->nth(0)->as_list();
+      /* check if the first argument is a list. If it isn't, we'll need to convert
+         it into a list first before appending */
+      SpList *head = NULL;
+      if (args->nth(0)->type() != T_LIST)
+         head = new SpList({ args->nth(0) });
+      else head = args->nth(0)->as_list();
+
       for (int i = 1; i < args->length(); i++) {
          head->append(args->nth(i));
       }
