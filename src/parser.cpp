@@ -104,6 +104,10 @@ SpError *SpParser::parse_expr() {
       switch (token->type()) {
          case TOKEN_NUMERIC:
             push_token(token);
+            if (prev_token && prev_token->type() == TOKEN_NUMERIC) {
+               /* implicit concatenation */
+               push_token(new SpToken("append", TOKEN_FUNCTION_CALL, 2, token->start_pos()));
+            }
             break;
          case TOKEN_OPERATOR: {
             /* if the previous token is NULL, then that means this operator is
