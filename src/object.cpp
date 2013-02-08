@@ -2,7 +2,11 @@
 
 #include <cstring>
 
-SpFunction::SpFunction(SpNative native) : is_native_(true), native_code_(native) { }
+SpFunction::SpFunction(const SpObject *pattern, const SpNative native) : 
+   is_native_(true), native_code_(native), pattern_(pattern) { }
+
+SpFunction::SpFunction(const SpObject* pattern, const TokenIter begin, const TokenIter end) :
+   bytecode_(begin, end), is_native_(false), pattern_(pattern) { }
 
 SpError *SpFunction::native_call(SpEnv *env) const {
    return native_code_(env);
@@ -35,6 +39,12 @@ SpObject::SpObject(ObjectType type, bool default_val) : type_(type) {
 
 SpObject::SpObject(ObjectType type, Value val) : type_(type), v_(val) { }
 
+SpObject::~SpObject() {
+   /* TODO: free all memory used by this object. Needs
+      reference data types in Spooner so that return values
+      won't get freed */
+}
+
 SpObject *SpObject::create_int(const int value) {
    Value int_val; int_val.n = value;
    return new SpObject(T_INT, int_val);
@@ -58,13 +68,13 @@ SpObject *SpObject::create_name(const std::string &name) {
    return new SpObject(T_NAME, name_val);
 }
 
-SpObject *SpObject::create_list(const SpList value) {
-   Value list_val; list_val.l = new SpList(value);
+SpObject *SpObject::create_list(SpList *value) {
+   Value list_val; list_val.l = value;
    return new SpObject(T_LIST, list_val);
 }
 
-SpObject *SpObject::create_native_func(SpNative native) {
-   Value native_val; native_val.f = new SpFunction(native);
+SpObject *SpObject::create_native_func(const SpObject *pattern, SpNative native) {
+   Value native_val; native_val.f = new SpFunction(pattern, native);
    return new SpObject(T_FUNCTION, native_val);
 }
 

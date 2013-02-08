@@ -32,7 +32,7 @@ void init_native_functions(SpEnv* base) {
    /* list processing */
    base->bind_name("list", NATIVE_FUNC(
       SpList *args = env->resolve_name("$_")->as_list();
-      env->bind_name("$$", SpObject::create_list(*args));
+      env->bind_name("$$", SpObject::create_list(args));
    ));
 
    /* length returns the length of any list */
@@ -48,7 +48,7 @@ void init_native_functions(SpEnv* base) {
       for (int i = 1; i < args->length(); i++) {
          head->append(args->nth(i));
       }
-      env->bind_name("$$", SpObject::create_list(*head));
+      env->bind_name("$$", SpObject::create_list(head));
    ));
 
    /* nth(i) gets the ith element of a list */

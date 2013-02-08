@@ -14,9 +14,9 @@ void SpVM::set_call_env(const SpFunction *func, const int arity) {
       obj_s_.pop();
    }
    
-   SpList arg_list;
+   SpList *arg_list = new SpList();
    for (int i = 0; i < arity; i++) {
-      arg_list.append(args.back());
+      arg_list->append(args.back());
       args.pop_back();
    }
    env()->bind_name("$_", SpObject::create_list(arg_list));
@@ -82,15 +82,24 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
 SpError *SpVM::eval(TokenIter begin, TokenIter end) {
    TokenIter it;
    for (it = begin; it != end; ++it) {
+      std::string val = (*it)->value();
       switch ((*it)->type()) {
+         case TOKEN_NAME:
+            if ((*it)->resolve()) {
+               SpObject *obj = env()->resolve_name(val);
+               if (obj)
+                  push_object(obj);
+               else
+                  return RUNTIME_ERROR_F("Use of undefined variable '%s'", val.c_str());
+            } else push_object(SpObject::create_name(val.c_str()));
          case TOKEN_NUMERIC:
-            push_object(SpObject::create_int(atoi((*it)->value().c_str())));
+            push_object(SpObject::create_int(atoi(val.c_str())));
             break;
          case TOKEN_OPERATOR: {
             /* all operators are just binary function calls
                so we get the function associated with this
                operator and call it */
-            SpOperator *op = parser_->find_operator((*it)->value());
+            SpOperator *op = parser_->find_operator(val);
             if (op->func_name() == "") return RUNTIME_ERROR("Operator not supported");
             
             SpError *err = call_function_by_name(op->func_name(), (*it)->arity());
@@ -98,7 +107,7 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             break;
          }
          case TOKEN_FUNCTION_CALL: {
-            SpError *err = call_function_by_name((*it)->value(), (*it)->arity());
+            SpError *err = call_function_by_name(val, (*it)->arity());
             if (err) return err;
             break;
          }
@@ -122,7 +131,8 @@ void SpVM::clear_objects() {
    while(!obj_s_.empty()) {
       SpObject *top = obj_s_.top();
       obj_s_.pop();
-      delete top;
-      top = NULL;
+      if (top != NULL) {
+         delete top; top = NULL;
+      }
    }
 }

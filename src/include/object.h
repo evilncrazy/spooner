@@ -19,22 +19,6 @@ enum ObjectType {
 /* forward decl of object */
 class SpObject;
 
-class SpFunction {
-  private:
-   std::vector<SpToken *> bytecode_;
-   bool is_native_;
-   SpNative native_code_;
-  public:
-   SpFunction(const SpNative native_code);
-   SpFunction(const TokenIter begin, const TokenIter end);
-
-   bool is_native() const { return native_code_; }
-   SpError *native_call(SpEnv *env) const;
-
-   TokenIter bc_cbegin() const { return bytecode_.cbegin(); }
-   TokenIter bc_cend() const { return bytecode_.cend(); }
-};
-
 class SpList {
   private:
    /* the underlying list */
@@ -53,6 +37,25 @@ class SpList {
    SpObject *nth(const int index) const { return items_[index]; }
 };
 
+class SpFunction {
+  private:
+   std::vector<SpToken *> bytecode_;
+   bool is_native_;
+   SpNative native_code_;
+   const SpObject *pattern_;
+  public:
+   SpFunction(const SpObject *pattern, const SpNative native_code);
+   SpFunction(const SpObject *pattern, const TokenIter begin, const TokenIter end);
+
+   const SpObject *pattern() const { return pattern_; }
+
+   bool is_native() const { return native_code_; }
+   SpError *native_call(SpEnv *env) const;
+
+   TokenIter bc_cbegin() const { return bytecode_.cbegin(); }
+   TokenIter bc_cend() const { return bytecode_.cend(); }
+};
+
 typedef union {
    void *g; /* any other types */
    double d;
@@ -68,13 +71,14 @@ class SpObject {
   public:
    SpObject(ObjectType type, bool default_val = false);
    SpObject(ObjectType type, Value val);
+   ~SpObject();
 
    static SpObject *create_int(const int value);
    static SpObject *create_bool(const bool value);
    static SpObject *create_char(const char value);
    static SpObject *create_name(const std::string &name);
-   static SpObject *create_list(const SpList value);
-   static SpObject *create_native_func(SpNative native);
+   static SpObject *create_list(SpList *value);
+   static SpObject *create_native_func(const SpObject *pattern, SpNative native);
 
    SpObject *shallow_clone() const;
    SpObject *deep_clone() const;
