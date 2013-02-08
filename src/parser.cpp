@@ -70,6 +70,12 @@ SpToken *SpParser::next_token() {
          while (it_ != source().end() && isdigit(*it_)) { ++it_; }
          return new SpToken(std::string(start_it, it_), TOKEN_NUMERIC, 0, start);
       }
+
+      /* comment */
+      case '#':
+         /* ignore the entire line */
+         while (it_ != source().end() && *it_ != '\n') { ++it_; }
+         return next_token();
       
       default:
          /* name tokens (TODO: change into a case jump) */
