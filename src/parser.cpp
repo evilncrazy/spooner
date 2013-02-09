@@ -58,10 +58,12 @@ SpToken *SpParser::next_token() {
       }
 
       /* parenthesis and brackets */
-      case '(': ++it_; return new SpToken('(', TOKEN_LEFT_PARENS, 1, start); 
-      case ')': ++it_; return new SpToken(')', TOKEN_RIGHT_PARENS, 1, start); 
-      case '[': ++it_; return new SpToken('[', TOKEN_LEFT_SQUARE_BRACKET, 1, start); 
-      case ']': ++it_; return new SpToken(']', TOKEN_RIGHT_SQUARE_BRACKET, 1, start); 
+      case '(': ++it_; return new SpToken('(', TOKEN_LEFT_PARENS, 0, start); 
+      case ')': ++it_; return new SpToken(')', TOKEN_RIGHT_PARENS, 0, start); 
+      case '[': ++it_; return new SpToken('[', TOKEN_LEFT_SQUARE_BRACKET, 0, start); 
+      case ']': ++it_; return new SpToken(']', TOKEN_RIGHT_SQUARE_BRACKET, 0, start); 
+      case '{': ++it_; return new SpToken('{', TOKEN_LEFT_BRACE, 0, start);
+      case '}': ++it_; return new SpToken('}', TOKEN_RIGHT_BRACE, 0, start);
 
       /* numeric tokens (TODO: handle decimal numbers) */
       case '0': case '1': case '2': case '3': case '4': 
@@ -136,14 +138,12 @@ SpError *SpParser::parse_expr() {
             break;
          }
          case TOKEN_RIGHT_PARENS:
+         case TOKEN_RIGHT_BRACE:
             /* this has expression closed */
             /* TODO: possibly in the far future, have post-fix operators */
 
             /* output the leftover operators */
-            while (!op_s.empty()) {
-               push_token(op_s.top());
-               op_s.pop();
-            }
+            while (!op_s.empty()) push_token(op_s.top()), op_s.pop();
             return NO_ERROR;
          case TOKEN_LEFT_SQUARE_BRACKET: {
             /* left square bracket, beginning of a function call */
@@ -151,7 +151,28 @@ SpError *SpParser::parse_expr() {
             if (err) return err;
             break;
          }
-         default: return PARSE_ERROR("Unimplemented!");
+         case TOKEN_LEFT_BRACE: {
+            /* push through the left brace to inform the VM that
+               what follows are quoted tokens and should be not be
+               evaluated. We keep a pointer to this token because
+               we need to set its arity to the number of quoted 
+               tokens later, so the VM can know when the quoted
+               tokens end */
+            SpToken *brace_token = token;
+            push_token(token);
+
+            int prev_num_tokens = token_list_.size();
+            SpError *err = parse_expr();
+            if (err) return err;
+
+            /* now, the stuff in the quotations have all been parsed.
+               so we set the arity of the brace token to be the number
+               of quoted tokens */
+            brace_token->set_arity(token_list_.size() - prev_num_tokens);
+            break;
+         }
+         default: 
+            break;
       }
 
       prev_token = token;
@@ -192,6 +213,18 @@ SpError *SpParser::parse_function() {
                /* a new expr */
                SpError *err = parse_expr();
                if (err) return err; 
+               break;
+            }
+            case TOKEN_LEFT_BRACE: {
+               /* this is the same as how parse_expr() parses LEFT_BRACEs */
+               SpToken *brace_token = token;
+               push_token(token);
+
+               int prev_num_tokens = token_list_.size();
+               SpError *err = parse_expr();
+               if (err) return err;
+
+               brace_token->set_arity(token_list_.size() - prev_num_tokens);
                break;
             }
             default:

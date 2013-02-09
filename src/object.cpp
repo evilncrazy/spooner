@@ -73,6 +73,11 @@ SpObject *SpObject::create_list(SpList *value) {
    return new SpObject(T_LIST, list_val);
 }
 
+SpObject *SpObject::create_function(const std::vector<SpToken *>& opcodes) {
+   Value func_val; func_val.f = new SpFunction(NULL, opcodes.cbegin(), opcodes.cend());
+   return new SpObject(T_FUNCTION, func_val);
+}
+
 SpObject *SpObject::create_native_func(const SpObject *pattern, SpNative native) {
    Value native_val; native_val.f = new SpFunction(pattern, native);
    return new SpObject(T_FUNCTION, native_val);
@@ -127,6 +132,9 @@ void SpObject::print_self() {
          printf("]");
          break;
       }
+      case T_FUNCTION:
+         printf("(Function)");
+         break;
       default: printf("(OBJECT)");
    }
 }

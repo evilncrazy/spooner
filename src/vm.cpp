@@ -111,6 +111,18 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             if (err) return err;
             break;
          }
+         case TOKEN_LEFT_BRACE: {
+            /* we'll collect the quoted tokens from here */ 
+            std::vector<SpToken *> quo;
+            int num_quoted = (*it)->arity();
+            for (int i = 0; i < num_quoted; i++) {
+               ++it;
+               quo.push_back(*it);
+            }
+
+            push_object(SpObject::create_function(quo));
+            break;
+         }
          default:
             return RUNTIME_ERROR("Unsupported operation");
       }

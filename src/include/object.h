@@ -78,6 +78,7 @@ class SpObject {
    static SpObject *create_char(const char value);
    static SpObject *create_name(const std::string &name);
    static SpObject *create_list(SpList *value);
+   static SpObject *create_function(const std::vector<SpToken *>& opcodes);
    static SpObject *create_native_func(const SpObject *pattern, SpNative native);
 
    SpObject *shallow_clone() const;

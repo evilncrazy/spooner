@@ -32,6 +32,7 @@ void init_native_functions(SpEnv* base) {
    ));
 
    /* core functions */
+   base->bind_name("unq", NATIVE_FUNC());
 
    /* list processing */
    base->bind_name("list", NATIVE_FUNC(
