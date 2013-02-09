@@ -13,7 +13,7 @@ Spooner has a very concise syntax that looks like a trainwreck of TCL and Scheme
 [fn sing_birthday name {
    [map (1..4) (i => 
       ("Happy Birthday " +
-         [cond (i == 3) "dear #{name}" " to you" ])]
+         [cond ($i == 3) "dear $name" "to you" ]))]
 }]
 
 [sing_birthday "Octocat"]
