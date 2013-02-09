@@ -48,25 +48,33 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
       return RUNTIME_ERROR_F("Not enough arguments for function '%s'", name.c_str());
 
    /* check what type of object this is */
-   /* TODO: possibly allow objects to have same type, but different type */
    SpObject *obj = env()->resolve_name(name);
-   if (obj && obj->type() == T_FUNCTION) {
+   if (obj && obj->type() == T_FUNCTION) { 
       /* create the call scope */
       set_call_env(obj->as_func(), arity);
-
+      
       /* check if this is a native function */
       if (obj->as_func()->is_native()) {
-         /* evaluate this native function */
-         SpError *err = obj->as_func()->native_call(env());
+         if (name == "unq") {
+            /* urgh, this is awkward...we need to handle the special
+               unquote function here, because we need use of the VM,
+               and we don't have access to the VM as a native function */
+            SpObject *quote = env()->resolve_name("$_")->as_list()->nth(0); 
+            if (quote && quote->type() == T_FUNCTION) {
+               SpError *err = call_function(quote->as_func(), 0);
+               if (err) return err;
+            } else return RUNTIME_ERROR("Unq needs to be called with a quotation");
+         } else {
+            /* evaluate this native function */
+            SpError *err = obj->as_func()->native_call(env());
+            if (err) return err;
 
-         if (err) return err;
-
-         /* retrieve the return value */
-         push_object(env()->resolve_name("$$")->deep_clone());
+            /* retrieve the return value */
+            push_object(env()->resolve_name("$$")->deep_clone());
+         }
       } else {
          /* evaluate this function */
          SpError *err = call_function(obj->as_func(), arity);
-
          if (err) return err;
       }
 
