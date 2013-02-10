@@ -90,6 +90,7 @@ class SpObject {
    static SpObject *create_int(const int value);
    static SpObject *create_bool(const bool value);
    static SpObject *create_char(const char value);
+   static SpObject *create_string(const std::string &name);
    static SpObject *create_bareword(const std::string &name);
    static SpObject *create_list(SpList *value);
    static SpObject *create_function(const std::vector<SpToken *>& opcodes);
@@ -105,6 +106,7 @@ class SpObject {
    int as_int() const { return v_.n; }
    bool as_bool() const { return v_.n ? true : false; }
    char as_char() const { return (char)v_.n; }
+   char *as_string() const { return gv_->s; }
    char *as_bareword() const { return gv_->s; }
    SpList *as_list() const { return gv_->l; }
    SpFunction *as_func() const { return gv_->f; }

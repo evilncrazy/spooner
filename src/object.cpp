@@ -100,6 +100,14 @@ SpObject *SpObject::create_char(const char value) {
    return new SpObject(T_CHAR, char_val);
 }
 
+SpObject *SpObject::create_string(const std::string &name) {
+   char *t = new char[name.size() + 1];
+   strcpy(t, name.c_str());
+
+   GCValue str_val; str_val.s = t;
+   return new SpObject(T_STRING, str_val);
+}
+
 SpObject *SpObject::create_bareword(const std::string &name) {
    char *t = new char[name.size() + 1];
    strcpy(t, name.c_str());
@@ -182,6 +190,9 @@ void SpObject::print_self() {
          printf("]");
          break;
       }
+      case T_STRING:
+         printf("\"%s\"", as_string());
+         break;
       case T_BAREWORD:
          printf("%s", as_bareword());
          break;

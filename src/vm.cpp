@@ -103,6 +103,9 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             push_object(obj->shallow_copy());
             break;
          }
+         case TOKEN_STRING:
+            push_object(SpObject::create_string(val.c_str()));
+            break;
          case TOKEN_BAREWORD:
             push_object(SpObject::create_bareword(val.c_str()));
             break;

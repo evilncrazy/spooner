@@ -70,9 +70,29 @@ SpToken *SpParser::next_token() {
       /* numeric tokens (TODO: handle decimal numbers) */
       case '0': case '1': case '2': case '3': case '4': 
       case '5': case '6': case '7': case '8': case '9': {
-         /* move the iterator to the first non-digit_ character */
+         /* move the iterator to the first non-digit character */
          while (it_ != source().end() && isdigit(*it_)) { ++it_; }
          return new SpToken(std::string(start_it, it_), TOKEN_NUMERIC, 0, start);
+      }
+
+      /* string literals */
+      case '"': {
+         std::vector<char> str_buf;
+         ++it_;
+         while (it_ != source().end()) {
+            char c = *it_++;
+            if (c == '\\' && it_ != source().end()) {
+               switch(*it_++) {
+                  case '\\': c = '\\'; break;
+                  case 'n': c = '\n'; break;
+                  case 't': c = '\t'; break;
+                  default: continue;
+               }
+            } else if (c == '"') break;
+            str_buf.push_back(c);
+         }
+
+         return new SpToken(std::string(str_buf.begin(), str_buf.end()), TOKEN_STRING, 0, start);
       }
 
       /* comment */
@@ -118,8 +138,12 @@ SpError *SpParser::parse_expr() {
    while (token = next_token(), token->type() != TOKEN_EOF) {
       switch (token->type()) {
          case TOKEN_NUMERIC:
+         case TOKEN_STRING:
             push_token(token);
-            if (prev_token && prev_token->type() == TOKEN_NUMERIC) {
+            if (prev_token && prev_token->type() != TOKEN_OPERATOR &&
+                prev_token->type() != TOKEN_LEFT_PARENS &&
+                prev_token->type() != TOKEN_LEFT_SQUARE_BRACKET &&
+                prev_token->type() != TOKEN_LEFT_BRACE) {
                /* implicit concatenation */
                push_token(new SpToken("append", TOKEN_FUNCTION_CALL, 2, token->start_pos()));
             }
