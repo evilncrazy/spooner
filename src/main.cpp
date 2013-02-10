@@ -32,7 +32,7 @@ void init_native_functions(SpEnv* base) {
    ));
 
    /* core functions */
-   base->bind_name("=", NATIVE_FUNC(
+   base->bind_name("let", NATIVE_FUNC(
       SpList *args = env->resolve_name("$_")->as_list();
       env->parent()->bind_name(args->nth(0)->as_bareword(), args->nth(1)->shallow_copy());
       env->bind_name("$$", args->nth(1)->shallow_copy());

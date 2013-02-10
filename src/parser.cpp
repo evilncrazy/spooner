@@ -14,7 +14,7 @@ SpParser::SpParser() {
       { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
       { "-", SpOperator("-", 5, ASSOC_LEFT, "-") },
-      { "=", SpOperator("=", 2, ASSOC_LEFT, "=") }
+      { "=", SpOperator("=", 2, ASSOC_LEFT, "let") }
    });
 }
 
