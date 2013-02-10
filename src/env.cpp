@@ -23,6 +23,15 @@ void SpEnv::bind_name(const std::string name, SpObject *obj, const bool multi) {
       var_name = name + std::to_string(i);
    }
 
+   /* check if this variable has been declared before */
+   auto it = object_map_.find(var_name);
+   if (it != object_map_.end()) {
+      /* we need to delete what this object currently references */
+      delete it->second;
+      object_map_.erase(it);
+   }
+
+   /* now we can insert it */
    object_map_.insert(std::make_pair(var_name, obj));
    object_list_.push_back(obj);
 }

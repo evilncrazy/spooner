@@ -23,7 +23,7 @@ void init_native_functions(SpEnv* base) {
    base->bind_name("+", NATIVE_FUNC(
       int sum = 0;
       SpList *args = env->resolve_name("$_")->as_list();
-      for (int i = 0; i < args->length(); i++) {
+      for (size_t i = 0; i < args->length(); i++) {
          SpObject *obj = args->nth(i);
          if (obj && obj->type() == T_INT) sum += obj->as_int();
          else return RUNTIME_ERROR_F("Argument %d cannot be added", i);
@@ -32,12 +32,17 @@ void init_native_functions(SpEnv* base) {
    ));
 
    /* core functions */
+   base->bind_name("=", NATIVE_FUNC(
+      SpList *args = env->resolve_name("$_")->as_list();
+      env->parent()->bind_name(args->nth(0)->as_bareword(), args->nth(1)->shallow_copy());
+      env->bind_name("$$", args->nth(1)->shallow_copy());
+   ));
    base->bind_name("unq", NATIVE_FUNC());
 
    /* list processing */
    base->bind_name("list", NATIVE_FUNC(
-      SpList *args = env->resolve_name("$_")->as_list();
-      env->bind_name("$$", SpObject::create_list(args));
+      SpObject *args = env->resolve_name("$_");
+      env->bind_name("$$", args->shallow_copy());
    ));
 
    /* length returns the length of any list */
@@ -51,21 +56,21 @@ void init_native_functions(SpEnv* base) {
 
       /* check if the first argument is a list. If it isn't, we'll need to convert
          it into a list first before appending */
-      SpList *head = NULL;
-      if (args->nth(0)->type() != T_LIST)
-         head = new SpList({ args->nth(0) });
-      else head = args->nth(0)->as_list();
+      SpObject *list = (args->nth(0)->type() == T_LIST) ?
+         args->nth(0)->shallow_copy() :
+         SpObject::create_list(new SpList({ args->nth(0) }));
 
-      for (int i = 1; i < args->length(); i++) {
-         head->append(args->nth(i));
+      for (size_t i = 1; i < args->length(); i++) {
+         list->as_list()->append(args->nth(i)->shallow_copy());
       }
-      env->bind_name("$$", SpObject::create_list(head));
+
+      env->bind_name("$$", list);
    ));
 
    /* nth(i) gets the ith element of a list */
    base->bind_name("nth", NATIVE_FUNC(
       SpList *args = env->resolve_name("$_")->as_list();
-      env->bind_name("$$", args->nth(0)->as_list()->nth(args->nth(1)->as_int())->shallow_clone());
+      env->bind_name("$$", args->nth(0)->as_list()->nth(args->nth(1)->as_int())->shallow_copy());
    ));
 }
 

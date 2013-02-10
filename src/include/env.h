@@ -26,8 +26,16 @@ class SpEnv {
    int depth() const { return depth_; }
    SpEnv *parent() const { return parent_; }
 
-   void bind_name(const std::string name, SpObject *obj);
+   /* Spooner uses a crude way of implementing multimethods:
+      if bind_name is called with multi = true, and there is already an
+      entry for name in the environment, we append consecutive integers
+      to the name (from 1 inclusive) and see if that name is taken,
+      if not, we'll use that as the name. When we resolve a name with a
+      pattern, then we pick the first multimethod that has a matching
+      pattern by iterating through the multimethods */
+   void bind_name(const std::string name, SpObject *obj, bool multi = false);
    SpObject *resolve_name(const std::string name);
+   SpObject *resolve_name(const std::string name, const SpObject *obj);
 };
 
 #endif

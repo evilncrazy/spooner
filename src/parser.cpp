@@ -13,7 +13,8 @@ SpParser::SpParser() {
       { "*", SpOperator("*", 10, ASSOC_LEFT, "*") },
       { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
-      { "-", SpOperator("-", 5, ASSOC_LEFT, "-") }
+      { "-", SpOperator("-", 5, ASSOC_LEFT, "-") },
+      { "=", SpOperator("=", 2, ASSOC_LEFT, "=") }
    });
 }
 
@@ -52,7 +53,8 @@ SpToken *SpParser::next_token() {
    /* check what type of token begins at the current character */
    switch (*it_) {
       /* operator tokens */
-      case '*': case '/': case '+': case '-': {
+      case '*': case '/': case '+': case '-':
+      case '=': {
          /* create a new operator token */
          return new SpToken(*it_++, TOKEN_OPERATOR, 2, start);
       }
