@@ -132,6 +132,9 @@ void SpObject::print_self() {
          printf("]");
          break;
       }
+      case T_BAREWORD:
+         printf("%s", as_bareword());
+         break;
       case T_FUNCTION:
          printf("(Function)");
          break;

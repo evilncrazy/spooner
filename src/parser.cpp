@@ -81,12 +81,23 @@ SpToken *SpParser::next_token() {
       
       default:
          /* name tokens (TODO: change into a case jump) */
-         if (isalpha(*it_)) { 
+         if (isalpha(*it_) || *it_ == '_' || *it_ == '$') { 
+            /* if a name token begins with a sigil, then that
+               means we'll need to resolve it as a variable name */
+            bool sigil = false;
+            if (*it_ == '$') {
+               sigil = true;
+               ++it_;
+            }
+
             /* move the iterator to the first non-name character */
             while (it_ != source().end() && (
-               isalpha(*it_) || isdigit(*it_))) { ++it_; }
-
-            return new SpToken(std::string(start_it, it_), TOKEN_NAME, 0, start);
+               isalpha(*it_) || isdigit(*it_) || *it_ == '_')) { ++it_; }
+            
+            if (sigil)
+               return new SpToken(std::string(start_it + 1, it_), TOKEN_NAME, 0, start);
+            else
+               return new SpToken(std::string(start_it, it_), TOKEN_BAREWORD, 0, start);
          } else {
             /* Unrecognized symbol */
             return new SpToken();
@@ -110,6 +121,10 @@ SpError *SpParser::parse_expr() {
                /* implicit concatenation */
                push_token(new SpToken("append", TOKEN_FUNCTION_CALL, 2, token->start_pos()));
             }
+            break;
+         case TOKEN_BAREWORD:
+         case TOKEN_NAME:
+            push_token(token);
             break;
          case TOKEN_OPERATOR: {
             /* if the previous token is NULL, then that means this operator is
@@ -191,7 +206,7 @@ SpError *SpParser::parse_function() {
    /* a function call must begin with TOKEN_NAME or TOKEN_OPERATOR, 
       followed by args */
    if (token = next_token(),
-         (token->type() == TOKEN_NAME || token->type() == TOKEN_OPERATOR)) {
+         (token->type() == TOKEN_BAREWORD || token->type() == TOKEN_OPERATOR)) {
       /* keep track of the name of this function and its start */
       std::string name = token->value();
       int start = token->start_pos();

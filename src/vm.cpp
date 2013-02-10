@@ -92,14 +92,17 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
    for (it = begin; it != end; ++it) {
       std::string val = (*it)->value();
       switch ((*it)->type()) {
-         case TOKEN_NAME:
-            if ((*it)->resolve()) {
-               SpObject *obj = env()->resolve_name(val);
-               if (obj)
-                  push_object(obj);
-               else
-                  return RUNTIME_ERROR_F("Use of undefined variable '%s'", val.c_str());
-            } else push_object(SpObject::create_name(val.c_str()));
+         case TOKEN_NAME: {
+            SpObject *obj = env()->resolve_name(val); 
+            if (obj == NULL)
+               return RUNTIME_ERROR_F("Use of undefined variable '%s'", val.c_str());
+
+            push_object(obj->shallow_copy());
+            break;
+         }
+         case TOKEN_BAREWORD:
+            push_object(SpObject::create_bareword(val.c_str()));
+            break;
          case TOKEN_NUMERIC:
             push_object(SpObject::create_int(atoi(val.c_str())));
             break;
