@@ -5,14 +5,11 @@
 #include "include/pattern.h"
 
 SpEnv::~SpEnv() {
-   /* free all the objects */
+   /* this should free any GCValues that don't have any objects
+      referencing it. This is done automatically via std::share_ptr */
    while (!object_list_.empty()) {
-      SpObject *back = object_list_.back();
+      delete object_list_.back();
       object_list_.pop_back();
-
-      if (back != NULL) {
-         delete back; back = NULL;
-      }
    }
 
    object_map_.clear();

@@ -13,9 +13,10 @@ void SpVM::set_call_env(const SpFunction *func, const int arity) {
       args.push_back(obj_s_.top()); 
       obj_s_.pop();
    }
-   
+
    SpList *arg_list = new SpList();
    for (int i = 0; i < arity; i++) {
+      /* pass by reference (TODO: allow pass by value) */
       arg_list->append(args.back());
       args.pop_back();
    }
@@ -25,7 +26,10 @@ void SpVM::set_call_env(const SpFunction *func, const int arity) {
 void SpVM::close_env() {
    SpEnv *old = env();
    cur_env_ = old->parent();
-   delete old;
+
+   /* this should free any GCValues that don't have any objects
+      referencing it */
+   delete old; old = NULL;
 }
 
 SpError *SpVM::call_function(const SpFunction *f, const int arity) {
@@ -52,7 +56,7 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
    if (obj && obj->type() == T_FUNCTION) { 
       /* create the call scope */
       set_call_env(obj->as_func(), arity);
-      
+
       /* check if this is a native function */
       if (obj->as_func()->is_native()) {
          if (name == "unq") {
@@ -70,7 +74,7 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
             if (err) return err;
 
             /* retrieve the return value */
-            push_object(env()->resolve_name("$$")->deep_clone());
+            push_object(env()->resolve_name("$$")->shallow_copy());
          }
       } else {
          /* evaluate this function */
@@ -80,7 +84,6 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
 
       /* destroy the call scope */
       close_env();
-
       return NO_ERROR;
    } 
    

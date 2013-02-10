@@ -13,16 +13,43 @@ SpError *SpFunction::native_call(SpEnv *env) const {
 }
 
 SpList::SpList() { }
-SpList::SpList(const SpList &list) : items_(list.items_) { }
-SpList::SpList(const std::vector<SpObject *> items) : items_(items) { }
-SpList::SpList(const std::vector<SpObject *>::iterator begin,
-               const std::vector<SpObject *>::iterator end) : 
-               items_(begin, end) { }
-SpList::SpList(const std::initializer_list<SpObject *> items) : items_(items) { }
 
-SpObject::SpObject(ObjectType type, bool default_val) : type_(type) {
+SpList::SpList(const std::vector<SpObject *> items) {
+   for (size_t i = 0; i < items.size(); i++) {
+      append(items[i]->shallow_copy());
+   }
+}
+
+SpList::SpList(const std::initializer_list<SpObject *> items) {
+   for (auto it = items.begin(); it != items.end(); it++) {
+      append((*it)->shallow_copy());
+   }
+}
+
+SpList::~SpList() {
+   /* delete references to each element */
+   for (size_t i = 0; i < length(); i++) {
+      delete nth(i);
+   }
+   items_.clear();
+}
+
+GCValue::GCValue() : s(NULL), f(NULL), l(NULL), collect(false) { }
+GCValue::GCValue(const GCValue &val) : s(val.s), f(val.f), l(val.l), collect(false) { }
+GCValue::~GCValue() {
+   if (collect) {
+      /* here, we can safely free all data used by this GCValue because
+         this destructor is only called when no objects are referencing
+         this value. */
+      printf("collected garbage\n");
+      delete s; delete f; delete l;
+      s = NULL; f = NULL; l = NULL;
+   }
+}
+
+SpObject::SpObject(const ObjectType type, const bool default_val) : type_(type), gv_(nullptr) {
    if (default_val) {
-      switch(type) {
+      switch (type) {
          case T_INT:
          case T_BOOL:
          case T_CHAR:
@@ -37,12 +64,25 @@ SpObject::SpObject(ObjectType type, bool default_val) : type_(type) {
    }
 }
 
-SpObject::SpObject(ObjectType type, Value val) : type_(type), v_(val) { }
+SpObject::SpObject(const ObjectType type, Value val) :
+   type_(type), v_(val), gv_(nullptr) { }
+
+SpObject::SpObject(const ObjectType type, const GCValue &val) : type_(type) {
+   /* create a new shared ptr of this value, with an initial reference
+      count of 1 */
+   gv_ = std::make_shared<GCValue>(val);
+   gv_->collect = true; /* this object is now collectable by the GC */
+   printf("allocated GC object: ");
+   print_self();
+   printf("\n");
+}
 
 SpObject::~SpObject() {
-   /* TODO: free all memory used by this object. Needs
-      reference data types in Spooner so that return values
-      won't get freed */
+   /* when we free this object, any other object that references
+      the GCValue of this object should not be affected. We only
+      truly free the GCValue when there are no objects referencing
+      it (std::shared_ptr makes sure of that). Hence, we don't
+      do anything here. */
 }
 
 SpObject *SpObject::create_int(const int value) {
@@ -60,36 +100,45 @@ SpObject *SpObject::create_char(const char value) {
    return new SpObject(T_CHAR, char_val);
 }
 
-SpObject *SpObject::create_name(const std::string &name) {
+SpObject *SpObject::create_bareword(const std::string &name) {
    char *t = new char[name.size() + 1];
    strcpy(t, name.c_str());
 
-   Value name_val; name_val.g = (void *)t;
-   return new SpObject(T_NAME, name_val);
+   GCValue word_val; word_val.s = t;
+   return new SpObject(T_BAREWORD, word_val);
 }
 
 SpObject *SpObject::create_list(SpList *value) {
-   Value list_val; list_val.l = value;
+   GCValue list_val; list_val.l = value;
    return new SpObject(T_LIST, list_val);
 }
 
 SpObject *SpObject::create_function(const std::vector<SpToken *>& opcodes) {
-   Value func_val; func_val.f = new SpFunction(NULL, opcodes.cbegin(), opcodes.cend());
+   GCValue func_val; func_val.f = new SpFunction(NULL, opcodes.cbegin(), opcodes.cend());
    return new SpObject(T_FUNCTION, func_val);
 }
 
 SpObject *SpObject::create_native_func(const SpObject *pattern, SpNative native) {
-   Value native_val; native_val.f = new SpFunction(pattern, native);
+   GCValue native_val; native_val.f = new SpFunction(pattern, native);
    return new SpObject(T_FUNCTION, native_val);
 }
 
-SpObject *SpObject::shallow_clone() const {
-   return new SpObject(type(), val());
+SpObject *SpObject::shallow_copy() const {
+   SpObject *obj = new SpObject(type());
+   
+   /* check if this object is a GC-able object */
+   if (gv_) {
+      /* we create a new owner of the GCValue data through std::shared_ptr
+         so that the GCValue pointer is deleted only when no other objects
+         references it, including this object */
+      obj->gv_ = gv_; 
+   } else obj->v_ = v_;
+   return obj;
 }
 
-SpObject *SpObject::deep_clone() const {
-   /* TODO: also clone non-value data (e.g. strings, lists, functions */
-   return new SpObject(type(), val());
+SpObject *SpObject::deep_copy() const {
+   /* TODO: allow deep cloning */
+   return shallow_copy();
 }
 
 bool SpObject::equals(const SpObject *obj, const bool strict) const {
@@ -107,10 +156,11 @@ bool SpObject::equals(const SpObject *obj, const bool strict) const {
          case T_CHAR:
             if (strict || as_char() == obj->as_char()) return true;
             break;
-         case T_LIST:
-            /* TODO: list equality */
-            break;
          default:
+            /* this means that this object has a GCValue, so we can
+               just first compare their GCValue references */
+            if (gv_.get() == obj->gv_.get()) return true;
+            /* otherwise, we need to do some actual comparisons */
             return false;
       }
    }
@@ -120,12 +170,12 @@ bool SpObject::equals(const SpObject *obj, const bool strict) const {
 
 void SpObject::print_self() {
    switch (type()) {
-      case T_INT: printf("%d", v_.n); break;
-      case T_CHAR: printf("'%c'", (char)v_.n); break;
+      case T_INT: printf("%d", as_int()); break;
+      case T_CHAR: printf("'%c'", as_char()); break;
       case T_LIST: {
          printf("[");
          SpList *list = as_list();
-         for (int i = 0; i < list->length(); i++) {
+         for (size_t i = 0; i < list->length(); i++) {
             if (i) printf(", ");
             list->nth(i)->print_self();
          }
@@ -138,7 +188,7 @@ void SpObject::print_self() {
       case T_FUNCTION:
          printf("(Function)");
          break;
-      default: printf("(OBJECT)");
+      default: printf("(OBJECT %d)", type());
    }
 }
 

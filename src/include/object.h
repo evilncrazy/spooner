@@ -5,6 +5,7 @@
 #include "error.h"
 
 #include <vector>
+#include <memory>
 
 /* forward decl of environment */
 class SpEnv;
@@ -25,14 +26,12 @@ class SpList {
    std::vector<SpObject *> items_;
   public:
    SpList(); /* empty list */
-   SpList(const SpList &list);
    SpList(const std::vector<SpObject *> items);
-   SpList(const std::vector<SpObject *>::iterator begin,
-          const std::vector<SpObject *>::iterator end);
    SpList(const std::initializer_list<SpObject *> items); 
+   ~SpList();
 
    /* these method names corrospond to their respective Spooner functions */
-   int length() const { return items_.size(); }
+   size_t length() const { return items_.size(); }
    void append(SpObject *obj) { items_.push_back(obj); }
    SpObject *nth(const int index) const { return items_[index]; }
 };
@@ -56,21 +55,36 @@ class SpFunction {
    TokenIter bc_cend() const { return bytecode_.cend(); }
 };
 
-typedef union {
-   void *g; /* any other types */
-   double d;
-   int n;
+class GCValue {
+   /* let SpObject access the data inside a GCValue */
+   friend class SpObject;
+
+  private:
+   char *s;
    SpFunction *f;
    SpList *l;
+   bool collect; /* whether to collect this object in the GC */
+
+  public:
+   GCValue();
+   GCValue(const GCValue &val);
+   ~GCValue();
+};
+
+typedef union {
+   double d;
+   int n;
 } Value;
 
 class SpObject {
   private:
    ObjectType type_;
    Value v_;
+   std::shared_ptr<GCValue> gv_;
   public:
-   SpObject(ObjectType type, bool default_val = false);
-   SpObject(ObjectType type, Value val);
+   SpObject(const ObjectType type, const bool default_val = false);
+   SpObject(const ObjectType type, Value val);
+   SpObject(const ObjectType type, const GCValue &val);
    ~SpObject();
 
    static SpObject *create_int(const int value);
@@ -81,20 +95,19 @@ class SpObject {
    static SpObject *create_function(const std::vector<SpToken *>& opcodes);
    static SpObject *create_native_func(const SpObject *pattern, SpNative native);
 
-   SpObject *shallow_clone() const;
-   SpObject *deep_clone() const;
+   SpObject *shallow_copy() const;
+   SpObject *deep_copy() const;
 
    bool equals(const SpObject *obj, const bool strict = false) const;
 
    ObjectType type() const { return type_; }
-   Value val() const { return v_; }
 
    int as_int() const { return v_.n; }
    bool as_bool() const { return v_.n ? true : false; }
    char as_char() const { return (char)v_.n; }
-   char *as_name() const { return (char *)(v_.g); }
-   SpList *as_list() const { return v_.l; }
-   SpFunction *as_func() const { return v_.f; }
+   char *as_bareword() const { return gv_->s; }
+   SpList *as_list() const { return gv_->l; }
+   SpFunction *as_func() const { return gv_->f; }
 
    void print_self();
 };
