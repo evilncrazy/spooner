@@ -1,8 +1,12 @@
 #include "include/vm.h"
 
+#include <algorithm>
+
+#include "include/pattern.h"
+
 SpVM::SpVM(SpParser *parser) : cur_env_(new SpEnv(NULL)), parser_(parser) { }
 
-void SpVM::set_call_env(const SpFunction *func, const int arity) {
+void SpVM::set_call_env(const int arity) {
    cur_env_ = new SpEnv(env());
 
    /* TODO: declare a special variable to hold the function name */
@@ -14,13 +18,8 @@ void SpVM::set_call_env(const SpFunction *func, const int arity) {
       obj_s_.pop();
    }
 
-   SpList *arg_list = new SpList();
-   for (int i = 0; i < arity; i++) {
-      /* pass by reference (TODO: allow pass by value) */
-      arg_list->append(args.back());
-      args.pop_back();
-   }
-   env()->bind_name("$_", SpObject::create_list(arg_list));
+   std::reverse(args.begin(), args.end());
+   env()->bind_name("$_", SpObject::create_list(new SpList(args)));
 }
 
 void SpVM::close_env() {
@@ -32,62 +31,80 @@ void SpVM::close_env() {
    delete old; old = NULL;
 }
 
-SpError *SpVM::call_function(const SpFunction *f, const int arity) {
-   /* go into the calling scope */
-   set_call_env(f, arity);
-
+SpError *SpVM::call_function(const SpFunction *f) {
    /* now, evaluate the function opcodes */
+   printf("calling functions!\n");
    SpError *err = eval(f->bc_cbegin(), f->bc_cend());
    if (err) return err;
 
-   /* close the call scope */
-   close_env();
+   return NO_ERROR;
+}
+
+SpError *SpVM::call_native_function(const std::string &name, const SpFunction *f) {
+   /* handle very special native functions that need access to the VM */
+   if (name == "unq") {
+      /* unq takes a quotation as an argument and evaluates it */
+      SpObject *quote = env()->resolve_name("$_")->as_list()->nth(0); 
+      if (quote && quote->type() == T_FUNCTION) {
+         /* we need to evaluate the quotation in a new scope */
+         set_call_env();
+
+         SpError *err = call_function(quote->as_func());
+         if (err) return err;
+
+         close_env();
+      } else return RUNTIME_ERROR("Unq needs to be called with a quotation");
+   } else if (name == "fn") {
+      /* fn takes arguments in the form (name) (pattern) { func body } */
+      SpList *args = env()->resolve_name("$_")->as_list();
+
+      env()->bind_name(args->nth(0)->as_bareword(),
+         SpObject::create_function(
+            new SpFunction(args->nth(1), args->nth(2)->as_func())));
+   } else {
+      /* evaluate this native function */
+      SpError *err = f->native_call(env());
+      if (err) return err;
+
+      /* retrieve the return value */
+      push_object(env()->resolve_name("$$")->shallow_copy());
+   }
 
    return NO_ERROR;
 }
 
 SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
    /* check if we have enough arguments */
-   if (obj_s_.size() < (size_t)arity) 
-      return RUNTIME_ERROR_F("Not enough arguments for function '%s'", name.c_str());
+   if (obj_s_.size() < (size_t)arity)
+      return RUNTIME_ERROR("The unoccurable has occurred");
 
-   /* check what type of object this is */
-   SpObject *obj = env()->resolve_name(name);
+   /* go into the call scope */
+   set_call_env(arity);
+
+   /* check what type of object this is. note that this uses pattern
+      matching against the argument list, returning NULL if no suitable
+      function is found */
+   SpObject *obj = env()->resolve_name(name, env()->resolve_name("$_"));
    if (obj && obj->type() == T_FUNCTION) { 
-      /* create the call scope */
-      set_call_env(obj->as_func(), arity);
-
-      /* check if this is a native function */
-      if (obj->as_func()->is_native()) {
-         if (name == "unq") {
-            /* urgh, this is awkward...we need to handle the special
-               unquote function here, because we need use of the VM,
-               and we don't have access to the VM as a native function */
-            SpObject *quote = env()->resolve_name("$_")->as_list()->nth(0); 
-            if (quote && quote->type() == T_FUNCTION) {
-               SpError *err = call_function(quote->as_func(), 0);
-               if (err) return err;
-            } else return RUNTIME_ERROR("Unq needs to be called with a quotation");
-         } else {
-            /* evaluate this native function */
-            SpError *err = obj->as_func()->native_call(env());
-            if (err) return err;
-
-            /* retrieve the return value */
-            push_object(env()->resolve_name("$$")->shallow_copy());
-         }
-      } else {
-         /* evaluate this function */
-         SpError *err = call_function(obj->as_func(), arity);
-         if (err) return err;
+      /* find the what arguments have been bound to which variable names */
+      SpMatch match = SpMatch::match(obj->as_func()->pattern(), env()->resolve_name("$_"));
+      
+      for (auto it = match.cbegin(); it != match.cend(); it++) {
+         env()->bind_name(it->first, it->second->shallow_copy());
       }
 
-      /* destroy the call scope */
-      close_env();
+      /* call the function (either natively or in the VM) */
+      SpError *err = (obj->as_func()->is_native()) ?
+         call_native_function(name, obj->as_func()) :
+         call_function(obj->as_func());
+      if (err) return err;
       return NO_ERROR;
    } 
    
-   return RUNTIME_ERROR("Not a function!");
+   /* close the call scope */
+   close_env();
+
+   return RUNTIME_ERROR_F("No patterns found for '%s' that matches the arguments given", name.c_str());
 }
 
 SpError *SpVM::eval(TokenIter begin, TokenIter end) {
@@ -134,10 +151,10 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             int num_quoted = (*it)->arity();
             for (int i = 0; i < num_quoted; i++) {
                ++it;
-               quo.push_back(*it);
+               quo.push_back(new SpToken(**it));
             }
 
-            push_object(SpObject::create_function(quo));
+            push_object(SpObject::create_quote(quo));
             break;
          }
          default:

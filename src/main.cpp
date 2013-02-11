@@ -12,64 +12,62 @@
 #include <string>
 
 /* horrible macro for creating native functions through lambda syntax */
-#define NATIVE_FUNC(code) SpObject::create_native_func(NULL, [] (SpEnv *env) -> SpError* { \
-   code \
-   return NO_ERROR; \
+#define NATIVE_FUNC(pat,code) SpObject::create_native_func(pat, [] (SpEnv *env) -> SpError* {\
+   SpList *args = env->resolve_name("$_")->as_list();\
+   code\
+   return NO_ERROR;\
 }) 
 
+#define SPECIAL_NATIVE(pat) SpObject::create_native_func(pat, [] (SpEnv *env) -> SpError* {\
+   env->bind_name("$$", NULL);\
+   return NO_ERROR;\
+})
+
 void init_native_functions(SpEnv* base) {
-   /* TODO: use patterns for native functions */
+   /* warning: extremely ugly code below. possible head explosions and self harm beyond this point */
+   /* initalize the wildcard constant */
+   SpObject *wc = new SpObject(T_WILDCARD);
+   base->bind_name("_", wc);
+
+   /* use patterns for native functions */
+   SpObject *pat_2_ints = SpObject::create_list(new SpList {
+      SpObject::create_pair(
+         SpObject::create_bareword("int"), SpObject::create_bareword("a")),
+      SpObject::create_pair(
+         SpObject::create_bareword("int"), SpObject::create_bareword("b"))});
+
    /* arithmetic functions */
-   base->bind_name("+", NATIVE_FUNC(
-      int sum = 0;
-      SpList *args = env->resolve_name("$_")->as_list();
-      for (size_t i = 0; i < args->length(); i++) {
-         SpObject *obj = args->nth(i);
-         if (obj && obj->type() == T_INT) sum += obj->as_int();
-         else return RUNTIME_ERROR_F("Argument %d cannot be added", i);
-      }
-      env->bind_name("$$", SpObject::create_int(sum));
+   base->bind_name("+", NATIVE_FUNC(pat_2_ints,
+      env->bind_name("$$", SpObject::create_int(args->nth(0)->as_int() + args->nth(1)->as_int()));
    ));
 
    /* core functions */
-   base->bind_name("let", NATIVE_FUNC(
-      SpList *args = env->resolve_name("$_")->as_list();
+   base->bind_name("let", NATIVE_FUNC(SpObject::create_list(new SpList {
+      SpObject::create_pair(
+         SpObject::create_bareword("bareword"), SpObject::create_bareword("x")),
+      wc }),
+
       env->parent()->bind_name(args->nth(0)->as_bareword(), args->nth(1)->shallow_copy());
       env->bind_name("$$", args->nth(1)->shallow_copy());
    ));
-   base->bind_name("unq", NATIVE_FUNC());
+
+   base->bind_name("unq", SPECIAL_NATIVE(NULL));
+   base->bind_name("fn", SPECIAL_NATIVE(SpObject::create_list(new SpList {wc, wc, wc})
+   ));
 
    /* list processing */
-   base->bind_name("list", NATIVE_FUNC(
-      SpObject *args = env->resolve_name("$_");
-      env->bind_name("$$", args->shallow_copy());
+   /* TODO: NEEDS VARIADIC PATTERNS */
+   base->bind_name("list", NATIVE_FUNC(SpObject::create_list(new SpList {wc}),
+      env->bind_name("$$", env->resolve_name("$_")->shallow_copy());
    ));
 
    /* length returns the length of any list */
-   base->bind_name("length", NATIVE_FUNC(
-      env->bind_name("$$", SpObject::create_int(env->resolve_name("$_")->as_list()->length()));
-   ));
-   
-   /* append concatenates its arguments together as a list */
-   base->bind_name("append", NATIVE_FUNC(
-      SpList *args = env->resolve_name("$_")->as_list();
-
-      /* check if the first argument is a list. If it isn't, we'll need to convert
-         it into a list first before appending */
-      SpObject *list = (args->nth(0)->type() == T_LIST) ?
-         args->nth(0)->shallow_copy() :
-         SpObject::create_list(new SpList({ args->nth(0) }));
-
-      for (size_t i = 1; i < args->length(); i++) {
-         list->as_list()->append(args->nth(i)->shallow_copy());
-      }
-
-      env->bind_name("$$", list);
+   base->bind_name("length", NATIVE_FUNC(NULL,
+      env->bind_name("$$", SpObject::create_int(args->length()));
    ));
 
    /* nth(i) gets the ith element of a list */
-   base->bind_name("nth", NATIVE_FUNC(
-      SpList *args = env->resolve_name("$_")->as_list();
+   base->bind_name("nth", NATIVE_FUNC(NULL,
       env->bind_name("$$", args->nth(0)->as_list()->nth(args->nth(1)->as_int())->shallow_copy());
    ));
 }
@@ -134,7 +132,7 @@ int main(int argc, const char * argv[]) {
             result->print_self();
             printf("\n");
             vm.clear_objects();
-         } else printf("NULL RETURN VALUE\n");
+         } else printf("nil\n");
       }
    }
 

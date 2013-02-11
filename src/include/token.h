@@ -20,6 +20,7 @@ class SpToken {
    int start_pos_, end_pos_;
   public:
    SpToken();
+   SpToken(const SpToken& token);
    SpToken(const char c, TokenType type, int arity, int pos);
    SpToken(std::string value, TokenType type, int arity, int pos);
 
@@ -27,6 +28,7 @@ class SpToken {
    std::string value() const { return value_; }
    int arity() const { return arity_; }
    int start_pos() const { return start_pos_; }
+   int end_pos() const { return end_pos_; }
 
    void set_arity(const int v) { arity_ = v; }
 };

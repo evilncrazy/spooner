@@ -5,6 +5,9 @@
 SpFunction::SpFunction(const SpObject *pattern, const SpNative native) : 
    is_native_(true), native_code_(native), pattern_(pattern) { }
 
+SpFunction::SpFunction(const SpObject *pattern, const SpFunction *quotation) :
+   bytecode_(quotation->bc_cbegin(), quotation->bc_cend()), is_native_(false), pattern_(pattern) { }
+
 SpFunction::SpFunction(const SpObject* pattern, const TokenIter begin, const TokenIter end) :
    bytecode_(begin, end), is_native_(false), pattern_(pattern) { }
 
@@ -121,7 +124,17 @@ SpObject *SpObject::create_list(SpList *value) {
    return new SpObject(T_LIST, list_val);
 }
 
-SpObject *SpObject::create_function(const std::vector<SpToken *>& opcodes) {
+SpObject *SpObject::create_pair(SpObject *a, SpObject *b) {
+   GCValue tuple_val; tuple_val.l = new SpList({ a, b});
+   return new SpObject(T_TUPLE, tuple_val);
+}
+
+SpObject *SpObject::create_function(SpFunction *value) {
+   GCValue func_val; func_val.f = value;
+   return new SpObject(T_FUNCTION, func_val);
+}
+
+SpObject *SpObject::create_quote(const std::vector<SpToken *>& opcodes) {
    GCValue func_val; func_val.f = new SpFunction(NULL, opcodes.cbegin(), opcodes.cend());
    return new SpObject(T_FUNCTION, func_val);
 }
@@ -129,6 +142,15 @@ SpObject *SpObject::create_function(const std::vector<SpToken *>& opcodes) {
 SpObject *SpObject::create_native_func(const SpObject *pattern, SpNative native) {
    GCValue native_val; native_val.f = new SpFunction(pattern, native);
    return new SpObject(T_FUNCTION, native_val);
+}
+
+ObjectType SpObject::str_to_type(const std::string &str) {
+   /* TODO: not complete. use unordered_map for optimization */
+   if(str == "int") return T_INT;
+   if(str == "quote") return T_FUNCTION;
+   if(str == "bareword") return T_BAREWORD;
+   if(str == "list") return T_LIST;
+   return T_NULL;
 }
 
 SpObject *SpObject::shallow_copy() const {
@@ -146,7 +168,9 @@ SpObject *SpObject::shallow_copy() const {
 
 SpObject *SpObject::deep_copy() const {
    /* TODO: allow deep cloning */
-   return shallow_copy();
+   if (type() == T_BAREWORD) {
+      return SpObject::create_bareword(as_bareword());
+   } else return shallow_copy();
 }
 
 bool SpObject::equals(const SpObject *obj, const bool strict) const {
@@ -176,10 +200,11 @@ bool SpObject::equals(const SpObject *obj, const bool strict) const {
    return false; /* TODO: loose typing + implicit conversions */
 }
 
-void SpObject::print_self() {
+void SpObject::print_self() const {
    switch (type()) {
       case T_INT: printf("%d", as_int()); break;
       case T_CHAR: printf("'%c'", as_char()); break;
+      case T_TUPLE:
       case T_LIST: {
          printf("[");
          SpList *list = as_list();

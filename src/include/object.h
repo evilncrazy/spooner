@@ -14,7 +14,7 @@ typedef SpError *(*SpNative)(SpEnv *env);
 
 enum ObjectType {
    T_NULL, T_BOOL, T_INT, T_CHAR, T_DECIMAL, T_STRING, T_FUNCTION, T_LIST,
-   T_BAREWORD
+   T_BAREWORD, T_TUPLE, T_WILDCARD
 };
 
 /* forward decl of object */
@@ -44,6 +44,7 @@ class SpFunction {
    const SpObject *pattern_;
   public:
    SpFunction(const SpObject *pattern, const SpNative native_code);
+   SpFunction(const SpObject *pattern, const SpFunction *quotation);
    SpFunction(const SpObject *pattern, const TokenIter begin, const TokenIter end);
 
    const SpObject *pattern() const { return pattern_; }
@@ -93,8 +94,12 @@ class SpObject {
    static SpObject *create_string(const std::string &name);
    static SpObject *create_bareword(const std::string &name);
    static SpObject *create_list(SpList *value);
-   static SpObject *create_function(const std::vector<SpToken *>& opcodes);
+   static SpObject *create_pair(SpObject *first, SpObject *second);
+   static SpObject *create_function(SpFunction *value);
+   static SpObject *create_quote(const std::vector<SpToken *>& opcodes);
    static SpObject *create_native_func(const SpObject *pattern, SpNative native);
+
+   static ObjectType str_to_type(const std::string &str);
 
    SpObject *shallow_copy() const;
    SpObject *deep_copy() const;
@@ -111,7 +116,7 @@ class SpObject {
    SpList *as_list() const { return gv_->l; }
    SpFunction *as_func() const { return gv_->f; }
 
-   void print_self();
+   void print_self() const;
 };
 
 #endif

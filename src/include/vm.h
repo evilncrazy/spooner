@@ -18,14 +18,16 @@ class SpVM {
    std::stack<SpObject *> obj_s_;
    SpParser *parser_;
 
-   /* create a new environment for a function call */
-   void set_call_env(const SpFunction *func, const int arity = 0);
+   /* create a new environment for a function call by treating
+      the top 'arity' objects on the stack as arguments */
+   void set_call_env(const int arity = 0);
 
    /* close the current environment, deleting all its objects */
    void close_env();
 
-   SpError *call_function(const SpFunction *func, const int arity = 0);
-   SpError *call_function_by_name(const std::string name, const int arity = 0); 
+   SpError *call_function(const SpFunction *func);
+   SpError *call_native_function(const std::string &name, const SpFunction *func);
+   SpError *call_function_by_name(const std::string name, const int arity); 
 
   public:
    SpVM(SpParser *parser);
