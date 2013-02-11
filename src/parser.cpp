@@ -7,33 +7,26 @@
 #include "include/operator.h"
 #include "include/error.h"
 
-SpParser::SpParser() {
-   /* initialize the operators table */
-   operators_ = std::unordered_map<std::string, SpOperator> ({
+SpParser::SpParser(const std::string &source) : source_(source), it_(source.cbegin()) { }
+
+SpParser::~SpParser() {
+   /* delete any remaining tokens */
+   while (!token_list_.empty()) delete token_list_.back(), token_list_.pop_back();
+}
+
+SpOperator *SpParser::find_operator(const std::string value) {
+   /* initialize the operators table as a static variable */
+   static auto operators = std::unordered_map<std::string, SpOperator> {
       { "*", SpOperator("*", 10, ASSOC_LEFT, "*") },
       { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
       { "-", SpOperator("-", 5, ASSOC_LEFT, "-") },
       { "=", SpOperator("=", 2, ASSOC_LEFT, "let") }
-   });
-}
+   };
 
-SpParser::~SpParser() {
-   while (!token_list_.empty()) delete token_list_.back(), token_list_.pop_back();
-}
-
-void SpParser::load(const std::string source) {
-   source_ = source;
-   it_ = source.cbegin();
-
-   /* delete any existing token list */
-   while (!token_list_.empty()) delete token_list_.back(), token_list_.pop_back();
-}
-
-SpOperator *SpParser::find_operator(const std::string value) {
    /* find the operator in the hash table */
-   auto result = operators_.find(value);
-   if (result != operators_.end()) {
+   auto result = operators.find(value);
+   if (result != operators.end()) {
       return &result->second;
    } else return NULL;
 }
@@ -94,12 +87,6 @@ SpToken *SpParser::next_token() {
 
          return new SpToken(std::string(str_buf.begin(), str_buf.end()), TOKEN_STRING, 0, start);
       }
-
-      /* comment */
-      case '#':
-         /* ignore the entire line */
-         while (it_ != source().end() && *it_ != '\n') { ++it_; }
-         return next_token();
       
       default:
          /* name tokens (TODO: change into a case jump) */
@@ -129,6 +116,20 @@ SpToken *SpParser::next_token() {
    
    /* we've reached EOF */
    return new SpToken(); /* empty constructor creates EOF token */
+}
+
+SpError *SpParser::parse() {
+   /* check if there is something in the source */
+   if (source().length() > 0) {
+      char first = source()[0];
+      if (first == '#') return NO_ERROR; /* comment, so ignore */
+      else if (first == '(') {
+         ++it_; return parse_expr();
+      } else if(first == '[') {
+         ++it_; return parse_function();
+      } else return PARSE_ERROR("Expected '(' or '['");
+   }
+   return NO_ERROR;
 }
 
 SpError *SpParser::parse_expr() {

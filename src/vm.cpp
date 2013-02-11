@@ -1,10 +1,12 @@
 #include "include/vm.h"
 
 #include <algorithm>
+#include <fstream>
 
 #include "include/pattern.h"
+#include "include/repl.h"
 
-SpVM::SpVM(SpParser *parser) : cur_env_(new SpEnv(NULL)), parser_(parser) { }
+SpVM::SpVM() : cur_env_(new SpEnv(NULL)) { }
 
 void SpVM::set_call_env(const int arity) {
    cur_env_ = new SpEnv(env());
@@ -33,7 +35,6 @@ void SpVM::close_env() {
 
 SpError *SpVM::call_function(const SpFunction *f) {
    /* now, evaluate the function opcodes */
-   printf("calling functions!\n");
    SpError *err = eval(f->bc_cbegin(), f->bc_cend());
    if (err) return err;
 
@@ -58,9 +59,15 @@ SpError *SpVM::call_native_function(const std::string &name, const SpFunction *f
       /* fn takes arguments in the form (name) (pattern) { func body } */
       SpList *args = env()->resolve_name("$_")->as_list();
 
+      /* if the pattern is not a list, we need to wrap it in a list */
+      SpObject *pattern = args->nth(1)->type() == T_LIST ?
+         args->nth(1) : SpObject::wrap_as_list(args->nth(1));
+
+      /* TODO: wrap non-function bodies in a function */
+
+      /* bind the function name to the function body */
       env()->bind_name(args->nth(0)->as_bareword(),
-         SpObject::create_function(
-            new SpFunction(args->nth(1), args->nth(2)->as_func())));
+         SpObject::create_function(new SpFunction(pattern, args->nth(2)->as_func())));
    } else {
       /* evaluate this native function */
       SpError *err = f->native_call(env());
@@ -133,7 +140,7 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             /* all operators are just binary function calls
                so we get the function associated with this
                operator and call it */
-            SpOperator *op = parser_->find_operator(val);
+            SpOperator *op = SpParser::find_operator(val);
             if (op->func_name() == "") return RUNTIME_ERROR("Operator not supported");
             
             SpError *err = call_function_by_name(op->func_name(), (*it)->arity());
@@ -162,6 +169,28 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
       }
    }
 
+   return NO_ERROR;
+}
+
+SpError *SpVM::import(const char *filename) {
+   std::ifstream in(filename);
+   if (!in.good()) return RUNTIME_ERROR("Cannot open import file");
+
+   std::string buffer;
+
+   /* create a new parser to parse this file */
+   while (!in.eof()) {
+      SpError *err = Repl::read_until_complete(in, buffer);
+      if (err) return err;
+
+      SpParser parser(buffer);
+      err = parser.parse();
+      if (err) return err;
+
+      /* evaluate this code */
+      err = eval(parser.cbegin_token(), parser.cend_token());
+      if (err) return err;
+   }
    return NO_ERROR;
 }
 

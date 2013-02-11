@@ -4,6 +4,7 @@
 #include "include/token.h"
 #include "include/object.h"
 #include "include/vm.h"
+#include "include/repl.h"
 
 #include <cstdio>
 #include <stack>
@@ -72,67 +73,64 @@ void init_native_functions(SpEnv* base) {
    ));
 }
 
+void print_error_message(SpError *err) {
+   printf(err->type() == ERROR_PARSE ? "Parse Error: %s\n" : "Runtime Error: %s\n", err->message().c_str());
+}
+
+SpError *read_and_eval(SpVM &vm) {
+   /* start the REPL */
+   std::string input;
+
+   /* ask for input */
+   SpError *err = Repl::read_until_complete(std::cin, input, true);
+   if (err) return err;
+
+   /* evaluate this line */
+   SpParser parser(input);
+   err = parser.parse();
+   if (err) return err;
+
+   printf("Successfully parsed %d tokens: ", (int)parser.num_tokens());
+   for (auto it = parser.cbegin_token(); it != parser.cend_token(); ++it) {
+      printf("%s ", (*it)->value().c_str());
+   }
+   printf("\n");
+
+   /* evaluate the bytecode */
+   err = vm.eval(parser.cbegin_token(), parser.cend_token());
+   if (err) return err; 
+
+   /* print out the return value */
+   if (vm.top_object()) {
+      SpObject *result = vm.top_object();
+      result->print_self();
+      printf("\n");
+      vm.clear_objects();
+   } else printf("nil\n");
+
+   return NO_ERROR;
+}
+
 int main(int argc, const char * argv[]) {
    /* TODO: use an external library to parse command lines */
    if (argc == 1) {
-      /* initialize the parser and VM */
-      SpParser parser;
-      SpVM vm(&parser);
+      /* initialize the VM */
+      SpVM vm;
 
       /* initialize native functions */
       init_native_functions(vm.env());
+
+      /* import the core library */
+      /* TODO: have configuration for file paths */
+      SpError *err = vm.import("../lib/core.sp");
+      if (err) { print_error_message(err); return 0; }
 
       /* start the REPL */
       std::string input;
 
       while (1) {
-         /* print the prompt and ask for input */
-         printf("=> ");
-         getline(std::cin, input);
-
-         /* check if this is a repl specific command */
-         if (input == ":quit") break;
-
-         /* evaluate this line */
-         char first = input[0];
-         parser.load(input.substr(1));
-         SpError *err = NULL;
-
-         /* check if an error was raised by parsing */
-         if (first == '(')
-            err = parser.parse_expr();
-         else if(first == '[')
-            err = parser.parse_function();
-         else
-            err = PARSE_ERROR("Expected '(' or '['");
-
-         if (err) {
-            printf("Parse Error: %s\n", err->message().c_str());
-            delete err;
-            continue;
-         } else {
-            printf("Successfully parsed %d tokens: ", (int)parser.num_tokens());
-            for (auto it = parser.cbegin_token(); it != parser.cend_token(); ++it) {
-               printf("%s ", (*it)->value().c_str());
-            }
-            printf("\n");
-         }
-
-         /* evaluate the bytecode */
-         err = vm.eval(parser.cbegin_token(), parser.cend_token());
-
-         /* check if there was any errors caused by the evaluation */
-         if (err) {
-            printf("Runtime Error: %s\n", err->message().c_str());
-            continue;
-         }
-
-         if (vm.top_object()) {
-            SpObject *result = vm.top_object();
-            result->print_self();
-            printf("\n");
-            vm.clear_objects();
-         } else printf("nil\n");
+         err = read_and_eval(vm);
+         if (err) { print_error_message(err); delete err; }
       }
    }
 

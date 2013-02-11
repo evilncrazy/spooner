@@ -30,8 +30,11 @@ class SpVM {
    SpError *call_function_by_name(const std::string name, const int arity); 
 
   public:
-   SpVM(SpParser *parser);
+   SpVM();
+
    SpError *eval(TokenIter begin, TokenIter end);
+
+   SpError *import(const char *filename);
 
    void push_object(SpObject *obj);
    SpObject *top_object() const;

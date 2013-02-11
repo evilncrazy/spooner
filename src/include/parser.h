@@ -24,15 +24,14 @@ class SpParser {
    SpToken *next_token();
 
   public:
-   SpParser();
+   SpParser(const std::string &source);
    ~SpParser();
 
-   void load(const std::string source);
-
+   SpError *parse();
    SpError *parse_expr();
    SpError *parse_function();
 
-   SpOperator *find_operator(const std::string value);
+   static SpOperator *find_operator(const std::string value);
 
    std::string source() const { return source_; }
    StrIter current() const { return it_; }
