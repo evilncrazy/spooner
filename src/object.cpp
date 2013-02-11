@@ -144,6 +144,10 @@ SpObject *SpObject::create_native_func(const SpObject *pattern, SpNative native)
    return new SpObject(T_FUNCTION, native_val);
 }
 
+SpObject *SpObject::wrap_as_list(SpObject *obj) {
+   return SpObject::create_list(new SpList { obj });
+}
+
 ObjectType SpObject::str_to_type(const std::string &str) {
    /* TODO: not complete. use unordered_map for optimization */
    if(str == "int") return T_INT;

@@ -99,6 +99,8 @@ class SpObject {
    static SpObject *create_quote(const std::vector<SpToken *>& opcodes);
    static SpObject *create_native_func(const SpObject *pattern, SpNative native);
 
+   static SpObject *wrap_as_list(SpObject *obj);
+
    static ObjectType str_to_type(const std::string &str);
 
    SpObject *shallow_copy() const;
