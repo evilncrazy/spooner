@@ -44,7 +44,7 @@ GCValue::~GCValue() {
       /* here, we can safely free all data used by this GCValue because
          this destructor is only called when no objects are referencing
          this value. */
-      printf("collected garbage\n");
+      //printf("collected garbage\n");
       delete s; delete f; delete l;
       s = NULL; f = NULL; l = NULL;
    }
@@ -75,9 +75,9 @@ SpObject::SpObject(const ObjectType type, const GCValue &val) : type_(type) {
       count of 1 */
    gv_ = std::make_shared<GCValue>(val);
    gv_->collect = true; /* this object is now collectable by the GC */
-   printf("allocated GC object: ");
-   print_self();
-   printf("\n");
+   //printf("allocated GC object: ");
+   //print_self();
+   //printf("\n");
 }
 
 SpObject::~SpObject() {
