@@ -31,7 +31,8 @@ SpMatch SpMatch::match(const SpObject *pattern, const SpObject *obj) {
          - bareword: binds the value of the matching element to the bareword,
                      matches anything
    */
-   if (pattern == NULL) return SpMatch(false);
+   if (pattern == NULL)
+      return obj->type() == T_LIST && obj->as_list()->length() == 0 ? SpMatch(true) : SpMatch(false);
 
    if (pattern->type() == T_LIST) {
       if (obj->type() == T_LIST) {

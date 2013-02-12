@@ -56,18 +56,26 @@ SpError *SpVM::call_native_function(const std::string &name, const SpFunction *f
          close_env();
       } else return RUNTIME_ERROR("Unq needs to be called with a quotation");
    } else if (name == "fn") {
-      /* fn takes arguments in the form (name) (pattern) { func body } */
+      /* fn takes arguments in the form of either:
+         1. fn (name) { func body }
+         2. fn (name) (pattern) { func body } */
       SpList *args = env()->resolve_name("$_")->as_list();
+      SpObject *pattern = NULL;
 
-      /* if the pattern is not a list, we need to wrap it in a list */
-      SpObject *pattern = args->nth(1)->type() == T_LIST ?
-         args->nth(1) : SpObject::wrap_as_list(args->nth(1));
+      /* check if there is a pattern (2nd form) */
+      if (args->length() == 3) {
+         /* if the pattern is not a list, we need to wrap it in a list */
+         pattern = args->nth(1)->type() == T_LIST ?
+            args->nth(1) : SpObject::wrap_as_list(args->nth(1));
+      }
 
       /* TODO: wrap non-function bodies in a function */
 
       /* bind the function name to the function body */
       env()->bind_name(args->nth(0)->as_bareword(),
-         SpObject::create_function(new SpFunction(pattern, args->nth(2)->as_func())));
+         SpObject::create_function(
+            new SpFunction(pattern, args->nth(args->length() - 1)->as_func())), true);
+
    } else {
       /* evaluate this native function */
       SpError *err = f->native_call(env());
@@ -94,10 +102,12 @@ SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
    SpObject *obj = env()->resolve_name(name, env()->resolve_name("$_"));
    if (obj && obj->type() == T_FUNCTION) { 
       /* find the what arguments have been bound to which variable names */
-      SpMatch match = SpMatch::match(obj->as_func()->pattern(), env()->resolve_name("$_"));
-      
-      for (auto it = match.cbegin(); it != match.cend(); it++) {
-         env()->bind_name(it->first, it->second->shallow_copy());
+      if (arity) {
+         SpMatch match = SpMatch::match(obj->as_func()->pattern(), env()->resolve_name("$_"));
+         
+         for (auto it = match.cbegin(); it != match.cend(); it++) {
+            env()->bind_name(it->first, it->second->shallow_copy());
+         }
       }
 
       /* call the function (either natively or in the VM) */

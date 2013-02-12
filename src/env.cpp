@@ -18,17 +18,21 @@ SpEnv::~SpEnv() {
 void SpEnv::bind_name(const std::string name, SpObject *obj, const bool multi) {
    std::string var_name = name;
 
-   /* now, we search for the next available name */
-   for (int i = 1; multi && object_map_.find(name) != object_map_.end(); i++) {
-      var_name = name + std::to_string(i);
-   }
-
    /* check if this variable has been declared before */
    auto it = object_map_.find(var_name);
    if (it != object_map_.end()) {
-      /* we need to delete what this object currently references */
-      delete it->second;
-      object_map_.erase(it);
+      if (multi) {
+         /* since multi is true, we need to create a multimethod. 
+            so we search for the next available name for this function */
+         for (int i = 1; multi && object_map_.find(var_name) != object_map_.end(); i++) {
+            var_name = name + std::to_string(i);
+         }
+      } else {
+         /* we need to delete this object as multi is false
+            (there can only be one variable with this name) */
+         delete it->second;
+         object_map_.erase(it);
+      }
    }
 
    /* now we can insert it */

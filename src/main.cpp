@@ -53,8 +53,8 @@ void init_native_functions(SpEnv* base) {
    ));
 
    base->bind_name("unq", SPECIAL_NATIVE(NULL));
-   base->bind_name("fn", SPECIAL_NATIVE(SpObject::create_list(new SpList {wc, wc, wc})
-   ));
+   base->bind_name("fn", SPECIAL_NATIVE(SpObject::create_list(new SpList {wc, wc, wc})));
+   base->bind_name("fn", SPECIAL_NATIVE(SpObject::create_list(new SpList {wc, wc})), true);
 
    /* list processing */
    /* TODO: NEEDS VARIADIC PATTERNS */
