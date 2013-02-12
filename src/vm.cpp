@@ -141,7 +141,18 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
             push_object(SpObject::create_string(val.c_str()));
             break;
          case TOKEN_BAREWORD:
-            push_object(SpObject::create_bareword(val.c_str()));
+            if (val[0] == '@') {
+               /* it's actually a constant, so check the type of object it is */
+               SpObject *obj = env()->resolve_name(val);
+               if (obj == NULL) {
+                  /* it has not been declared, so just act like we're a bareword */
+                  push_object(SpObject::create_bareword(val.c_str()));
+               } else {
+                  /* it has been declared before, which means we have to use its value */
+                  if (obj->type() == T_FUNCTION) call_function_by_name(val, 0);
+                  else push_object(obj->shallow_copy());
+               }
+            } else push_object(SpObject::create_bareword(val.c_str()));
             break;
          case TOKEN_NUMERIC:
             push_object(SpObject::create_int(atoi(val.c_str())));

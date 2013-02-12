@@ -89,15 +89,14 @@ SpToken *SpParser::next_token() {
       }
       
       default:
-         /* name tokens (TODO: change into a case jump) */
-         if (isalpha(*it_) || *it_ == '_' || *it_ == '$') { 
-            /* if a name token begins with a sigil, then that
+         /* word tokens (TODO: change into a case jump) */
+         if (isalpha(*it_) || *it_ == '_' || *it_ == '$' || (*it_ == '@' && isalpha(peek_next()))) { 
+            /* if a word token begins with a sigil, then that
                means we'll need to resolve it as a variable name */
-            bool sigil = false;
-            if (*it_ == '$') {
-               sigil = true;
-               ++it_;
-            }
+            bool sigil = (*it_ == '$') ? ++it_, true : false;
+
+            /* if a word token begins with a '@', it's a constant */
+            if (*it_ == '@') ++it_;
 
             /* move the iterator to the first non-name character */
             while (it_ != source().end() && (

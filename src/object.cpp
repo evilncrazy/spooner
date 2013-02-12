@@ -54,7 +54,6 @@ SpObject::SpObject(const ObjectType type, const bool default_val) : type_(type),
    if (default_val) {
       switch (type) {
          case T_INT:
-         case T_BOOL:
          case T_CHAR:
             v_.n = 0;
             break;
@@ -91,11 +90,6 @@ SpObject::~SpObject() {
 SpObject *SpObject::create_int(const int value) {
    Value int_val; int_val.n = value;
    return new SpObject(T_INT, int_val);
-}
-
-SpObject *SpObject::create_bool(const bool value) {
-   Value bool_val; bool_val.n = (int)value;
-   return new SpObject(T_BOOL, bool_val);
 }
 
 SpObject *SpObject::create_char(const char value) {
@@ -183,9 +177,6 @@ bool SpObject::equals(const SpObject *obj, const bool strict) const {
       switch(type()) {
          case T_NULL:
             return true;
-         case T_BOOL:
-            if (strict || as_bool() == obj->as_bool()) return true;
-            break;
          case T_INT:
             if (strict || as_int() == obj->as_int()) return true;
             break;
@@ -202,6 +193,18 @@ bool SpObject::equals(const SpObject *obj, const bool strict) const {
    }
 
    return false; /* TODO: loose typing + implicit conversions */
+}
+
+bool SpObject::is_true() const {
+   /* the following values are considered falsy:
+      null, false, 0 of numeric type, empty sequence, empty quote */
+   switch (type()) {
+      case T_NULL: return false;
+      case T_INT: case T_CHAR: return as_int() != 0;
+      case T_LIST: return as_list()->length() != 0;
+      case T_FUNCTION: return std::distance(as_func()->bc_cbegin(), as_func()->bc_cend()) != 0;
+      default: return true;
+   }
 }
 
 void SpObject::print_self() const {
