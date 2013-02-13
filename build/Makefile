@@ -3,14 +3,15 @@ CFLAGS = -Wall -Wextra -pedantic -std=c++0x -g
 SF = ../src
 HF = ../src/include
 BF = ../bin
-OB = operator.o parser.o error.o env.o object.o token.o vm.o pattern.o repl.o main.o
+OB = object.o value.o name.o refobject.o gcobject.o list.o function.o
+AL = operator.o parser.o error.o env.o $(OB) token.o vm.o pattern.o repl.o main.o
 
 all : $(BF)/spooner
 
 main.o : $(SF)/main.cpp $(HF)/env.h $(HF)/error.h $(HF)/object.h $(HF)/parser.h $(HF)/token.h $(HF)/operator.h $(HF)/vm.h
 	$(CC) $(CFLAGS) -c $(SF)/main.cpp
 
-env.o : $(SF)/env.cpp $(HF)/env.h
+env.o : $(SF)/env.cpp $(HF)/env.h $(HF)/object.h
 	$(CC) $(CFLAGS) -c $(SF)/env.cpp
 
 error.o : $(SF)/error.cpp $(HF)/error.h
@@ -18,6 +19,24 @@ error.o : $(SF)/error.cpp $(HF)/error.h
 
 object.o : $(SF)/object.cpp $(HF)/object.h
 	$(CC) $(CFLAGS) -c $(SF)/object.cpp
+
+value.o : $(SF)/value.cpp $(HF)/value.h $(HF)/object.h
+	$(CC) $(CFLAGS) -c $(SF)/value.cpp
+
+refobject.o : $(SF)/refobject.cpp $(HF)/refobject.h $(HF)/object.h
+	$(CC) $(CFLAGS) -c $(SF)/refobject.cpp
+
+gcobject.o : $(SF)/gcobject.cpp $(HF)/gcobject.h $(HF)/object.h
+	$(CC) $(CFLAGS) -c $(SF)/gcobject.cpp
+
+name.o : $(SF)/name.cpp $(HF)/name.h $(HF)/object.h
+	$(CC) $(CFLAGS) -c $(SF)/name.cpp
+
+list.o : $(SF)/list.cpp $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h
+	$(CC) $(CFLAGS) -c $(SF)/list.cpp
+
+function.o : $(SF)/function.cpp $(HF)/function.h $(HF)/env.h $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h
+	$(CC) $(CFLAGS) -c $(SF)/function.cpp
 
 parser.o : $(SF)/parser.cpp $(HF)/parser.h $(HF)/operator.h $(HF)/error.h
 	$(CC) $(CFLAGS) -c $(SF)/parser.cpp
@@ -37,5 +56,5 @@ pattern.o : $(SF)/pattern.cpp $(HF)/pattern.h $(HF)/object.h
 repl.o : $(SF)/repl.cpp $(HF)/repl.h $(HF)/error.h
 	$(CC) $(CFLAGS) -c $(SF)/repl.cpp
 
-$(BF)/spooner : $(OB)
-	$(CC) $(OB) -o $(BF)/spooner
+$(BF)/spooner : $(AL)
+	$(CC) $(AL) -o $(BF)/spooner

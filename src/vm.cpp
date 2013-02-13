@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <fstream>
 
+#include "include/list.h"
+#include "include/value.h"
 #include "include/pattern.h"
 #include "include/repl.h"
 
@@ -21,7 +23,7 @@ void SpVM::set_call_env(const int arity) {
    }
 
    std::reverse(args.begin(), args.end());
-   env()->bind_name("$_", SpObject::create_list(new SpList(args)));
+   env()->bind_name("$_", new SpRefObject(new SpList(args)));
 }
 
 void SpVM::close_env() {
@@ -35,87 +37,48 @@ void SpVM::close_env() {
 
 SpError *SpVM::call_function(const SpFunction *f) {
    /* now, evaluate the function opcodes */
-   SpError *err = eval(f->bc_cbegin(), f->bc_cend());
+   SpError *err = eval(f->cbegin(), f->cend());
    if (err) return err;
 
    return NO_ERROR;
 }
 
-SpError *SpVM::call_native_function(const std::string &name, const SpFunction *f) {
-   /* handle very special native functions that need access to the VM */
-   if (name == "unq") {
-      /* unq takes a quotation as an argument and evaluates it */
-      SpObject *quote = env()->resolve_name("$_")->as_list()->nth(0); 
-      if (quote && quote->type() == T_FUNCTION) {
-         /* we need to evaluate the quotation in a new scope */
-         set_call_env();
+SpError *SpVM::call_native_function(const SpNativeFunction *f) {
+   // evaluate this native function
+   SpError *err = f->native_eval(env());
+   if (err) return err;
 
-         SpError *err = call_function(quote->as_func());
-         if (err) return err;
-
-         close_env();
-      } else return RUNTIME_ERROR("Unq needs to be called with a quotation");
-   } else if (name == "fn") {
-      /* fn takes arguments in the form of either:
-         1. fn (name) { func body }
-         2. fn (name) (pattern) { func body } */
-      SpList *args = env()->resolve_name("$_")->as_list();
-      SpObject *pattern = NULL;
-
-      /* check if there is a pattern (2nd form) */
-      if (args->length() == 3) {
-         /* if the pattern is not a list, we need to wrap it in a list */
-         pattern = args->nth(1)->type() == T_LIST ?
-            args->nth(1) : SpObject::wrap_as_list(args->nth(1));
-      }
-
-      /* TODO: wrap non-function bodies in a function */
-
-      /* bind the function name to the function body */
-      env()->bind_name(args->nth(0)->as_bareword(),
-         SpObject::create_function(
-            new SpFunction(pattern, args->nth(args->length() - 1)->as_func())), true);
-
-   } else {
-      /* evaluate this native function */
-      SpError *err = f->native_call(env());
-      if (err) return err;
-
-      /* retrieve the return value */
-      push_object(env()->resolve_name("$$")->shallow_copy());
-   }
-
+   // retrieve the return value
+   push_object(env()->resolve_name("$$")->shallow_copy());
    return NO_ERROR;
 }
 
 SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
-   /* check if we have enough arguments */
-   if (obj_s_.size() < (size_t)arity)
-      return RUNTIME_ERROR("The unoccurable has occurred");
-
    /* go into the call scope */
    set_call_env(arity);
 
-   /* check what type of object this is. note that this uses pattern
-      matching against the argument list, returning NULL if no suitable
-      function is found */
-   SpObject *obj = env()->resolve_name(name, env()->resolve_name("$_"));
-   if (obj && obj->type() == T_FUNCTION) { 
-      /* find the what arguments have been bound to which variable names */
-      if (arity) {
-         SpMatch match = SpMatch::match(obj->as_func()->pattern(), env()->resolve_name("$_"));
-         
-         for (auto it = match.cbegin(); it != match.cend(); it++) {
-            env()->bind_name(it->first, it->second->shallow_copy());
-         }
-      }
+   /* check what type of object this is */
+   const SpObject *obj = env()->resolve_name(name, env()->depth() + 1)->self();
+   if (obj && obj->self()->type() == T_FUNCTION) {
+      SpMatch match = SpMatch::match(((SpFunction *)obj)->pattern(), env()->resolve_name("$_")->self());
 
-      /* call the function (either natively or in the VM) */
-      SpError *err = (obj->as_func()->is_native()) ?
-         call_native_function(name, obj->as_func()) :
-         call_function(obj->as_func());
-      if (err) return err;
-      return NO_ERROR;
+      if (match.is_match()) {
+         /* find the what arguments have been bound to which variable names */
+         if (arity) {
+            for (auto it = match.cbegin(); it != match.cend(); it++) {
+               env()->bind_name(it->first, it->second->shallow_copy());
+            }
+         }
+
+         /* call the function (either natively or in the VM) */
+         SpFunction *func = (SpFunction *)obj;
+         SpError *err = (func->is_native()) ?
+            call_native_function((SpNativeFunction *)func) :
+            call_function(func);
+
+         if (err) return err;
+         return NO_ERROR;
+      }
    } 
    
    /* close the call scope */
@@ -130,32 +93,15 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
       std::string val = (*it)->value();
       switch ((*it)->type()) {
          case TOKEN_NAME: {
-            SpObject *obj = env()->resolve_name(val); 
+            const SpObject *obj = env()->resolve_name(val); 
             if (obj == NULL)
                return RUNTIME_ERROR_F("Use of undefined variable '%s'", val.c_str());
 
             push_object(obj->shallow_copy());
             break;
          }
-         case TOKEN_STRING:
-            push_object(SpObject::create_string(val.c_str()));
-            break;
-         case TOKEN_BAREWORD:
-            if (val[0] == '@') {
-               /* it's actually a constant, so check the type of object it is */
-               SpObject *obj = env()->resolve_name(val);
-               if (obj == NULL) {
-                  /* it has not been declared, so just act like we're a bareword */
-                  push_object(SpObject::create_bareword(val.c_str()));
-               } else {
-                  /* it has been declared before, which means we have to use its value */
-                  if (obj->type() == T_FUNCTION) call_function_by_name(val, 0);
-                  else push_object(obj->shallow_copy());
-               }
-            } else push_object(SpObject::create_bareword(val.c_str()));
-            break;
          case TOKEN_NUMERIC:
-            push_object(SpObject::create_int(atoi(val.c_str())));
+            push_object(new SpIntValue(atoi(val.c_str())));
             break;
          case TOKEN_OPERATOR: {
             /* all operators are just binary function calls
@@ -175,6 +121,7 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
          }
          case TOKEN_LEFT_BRACE: {
             /* we'll collect the quoted tokens from here */ 
+            /* TODO: capture variables */
             std::vector<SpToken *> quo;
             int num_quoted = (*it)->arity();
             for (int i = 0; i < num_quoted; i++) {
@@ -182,7 +129,7 @@ SpError *SpVM::eval(TokenIter begin, TokenIter end) {
                quo.push_back(new SpToken(**it));
             }
 
-            push_object(SpObject::create_quote(quo));
+            push_object(new SpRefObject(new SpFunction(NULL, quo.cbegin(), quo.cend())));
             break;
          }
          default:

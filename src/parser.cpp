@@ -21,7 +21,7 @@ SpOperator *SpParser::find_operator(const std::string value) {
       { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
       { "-", SpOperator("-", 5, ASSOC_LEFT, "-") },
-      { "=", SpOperator("=", 2, ASSOC_LEFT, "let") }
+      { "=", SpOperator("=", 2, ASSOC_LEFT, "set") }
    };
 
    /* find the operator in the hash table */

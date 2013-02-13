@@ -8,3 +8,8 @@
 
 # identity x: the identity function. returns the value of x
 [fn identity x {$x}]
+
+# if (_, cond) (lambda/quote, body)
+#[def if ((_ : cond) (lambda | quote : body) (lambda | quote : else)) {
+#   [unq ((body else) . [truthy? cond]]
+#}]

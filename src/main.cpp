@@ -12,65 +12,8 @@
 #include <iostream>
 #include <string>
 
-/* horrible macro for creating native functions through lambda syntax */
-#define NATIVE_FUNC(pat,code) SpObject::create_native_func(pat, [] (SpEnv *env) -> SpError* {\
-   SpList *args = env->resolve_name("$_")->as_list();\
-   code\
-   return NO_ERROR;\
-}) 
-
-#define SPECIAL_NATIVE(pat) SpObject::create_native_func(pat, [] (SpEnv *env) -> SpError* {\
-   env->bind_name("$$", NULL);\
-   return NO_ERROR;\
-})
-
-void init_native_functions(SpEnv* base) {
-   /* warning: extremely ugly code below. possible head explosions and self harm beyond this point */
-   /* initalize the wildcard constant */
-   SpObject *wc = new SpObject(T_WILDCARD);
-   base->bind_name("_", wc);
-
-   /* use patterns for native functions */
-   SpObject *pat_2_ints = SpObject::create_list(new SpList {
-      SpObject::create_pair(
-         SpObject::create_bareword("int"), SpObject::create_bareword("a")),
-      SpObject::create_pair(
-         SpObject::create_bareword("int"), SpObject::create_bareword("b"))});
-
-   /* arithmetic functions */
-   base->bind_name("+", NATIVE_FUNC(pat_2_ints,
-      env->bind_name("$$", SpObject::create_int(args->nth(0)->as_int() + args->nth(1)->as_int()));
-   ));
-
-   /* core functions */
-   base->bind_name("let", NATIVE_FUNC(SpObject::create_list(new SpList {
-      SpObject::create_pair(
-         SpObject::create_bareword("bareword"), SpObject::create_bareword("x")),
-      wc }),
-
-      env->parent()->bind_name(args->nth(0)->as_bareword(), args->nth(1)->shallow_copy());
-      env->bind_name("$$", args->nth(1)->shallow_copy());
-   ));
-
-   base->bind_name("unq", SPECIAL_NATIVE(NULL));
-   base->bind_name("fn", SPECIAL_NATIVE(SpObject::create_list(new SpList {wc, wc, wc})));
-   base->bind_name("fn", SPECIAL_NATIVE(SpObject::create_list(new SpList {wc, wc})), true);
-
-   /* list processing */
-   /* TODO: NEEDS VARIADIC PATTERNS */
-   base->bind_name("list", NATIVE_FUNC(SpObject::create_list(new SpList {wc}),
-      env->bind_name("$$", env->resolve_name("$_")->shallow_copy());
-   ));
-
-   /* length returns the length of any list */
-   base->bind_name("length", NATIVE_FUNC(NULL,
-      env->bind_name("$$", SpObject::create_int(args->length()));
-   ));
-
-   /* nth(i) gets the ith element of a list */
-   base->bind_name("nth", NATIVE_FUNC(NULL,
-      env->bind_name("$$", args->nth(0)->as_list()->nth(args->nth(1)->as_int())->shallow_copy());
-   ));
+void init_native_functions(SpEnv *env) {
+   env->bind_name("+", new SpNativeAdd());
 }
 
 void print_error_message(SpError *err) {
@@ -103,8 +46,7 @@ SpError *read_and_eval(SpVM &vm) {
    /* print out the return value */
    if (vm.top_object()) {
       SpObject *result = vm.top_object();
-      result->print_self();
-      printf("\n");
+      printf("%s\n", result->inspect().c_str());
       vm.clear_objects();
    } else printf("nil\n");
 
@@ -122,8 +64,9 @@ int main(int argc, const char * argv[]) {
 
       /* import the core library */
       /* TODO: have configuration for file paths */
-      SpError *err = vm.import("../lib/core.sp");
-      if (err) { print_error_message(err); return 0; }
+      SpError *err = NULL;
+      //vm.import("../lib/core.sp");
+//      if (err) { print_error_message(err); return 0; }
 
       /* start the REPL */
       std::string input;

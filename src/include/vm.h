@@ -2,7 +2,8 @@
 #define SPOONER_VM_H
 
 #include "object.h"
-#include "limits.h"
+#include "function.h"
+#include "refobject.h"
 #include "env.h"
 #include "parser.h"
 #include "error.h"
@@ -26,7 +27,7 @@ class SpVM {
    void close_env();
 
    SpError *call_function(const SpFunction *func);
-   SpError *call_native_function(const std::string &name, const SpFunction *func);
+   SpError *call_native_function(const SpNativeFunction *func);
    SpError *call_function_by_name(const std::string name, const int arity); 
 
   public:

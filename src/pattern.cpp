@@ -2,6 +2,9 @@
 
 #include <cstring>
 
+#include "include/list.h"
+#include "include/name.h"
+
 SpMatch::SpMatch(bool is_match) : is_match_(is_match) { }
 
 SpMatch::SpMatch(std::string &name, const SpObject *value) : is_match_(true) { 
@@ -32,16 +35,16 @@ SpMatch SpMatch::match(const SpObject *pattern, const SpObject *obj) {
                      matches anything
    */
    if (pattern == NULL)
-      return obj->type() == T_LIST && obj->as_list()->length() == 0 ? SpMatch(true) : SpMatch(false);
+      return obj->type() == T_LIST && ((SpList *)obj->self())->length() == 0 ? SpMatch(true) : SpMatch(false);
 
    if (pattern->type() == T_LIST) {
       if (obj->type() == T_LIST) {
-         SpList *pat_list = pattern->as_list();
-         SpList *obj_list = obj->as_list();
+         const SpList *pat_list = (const SpList *)pattern->self();
+         const SpList *obj_list = (const SpList *)obj->self();
 
          if (pat_list->length() == obj_list->length()) {
             SpMatch result(true);
-            for (int i = 0; i < pat_list->length(); i++) {
+            for (size_t i = 0; i < pat_list->length(); i++) {
                SpMatch m = match(pat_list->nth(i), obj_list->nth(i));
 
                if (!m.is_match()) return SpMatch(false);
@@ -54,15 +57,11 @@ SpMatch SpMatch::match(const SpObject *pattern, const SpObject *obj) {
       if (pattern->type() == T_WILDCARD) {
          /* a wildcard matches anything */
          return SpMatch(true);
-      } else if (pattern->type() == T_TUPLE) {
-         /* first element is the type name that we're matching against */
-         const char *type_name = pattern->as_list()->nth(0)->as_bareword();
-         if (SpObject::str_to_type(std::string(type_name)) == obj->type())
-            return SpMatch(type_name, obj);
-      } else if (pattern->type() == T_BAREWORD) {
+      } else if (pattern->type() == T_NAME) {
          /* map the value to the name */
-         return SpMatch(pattern->as_bareword(), obj);
+         return SpMatch(((SpName *)pattern)->value(), obj);
       } else if (pattern->equals(obj)) {
+         /* constants */
          return SpMatch(true);
       }
    }

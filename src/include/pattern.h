@@ -4,6 +4,7 @@
 #include "object.h"
 
 #include <unordered_map>
+#include <string>
 
 class SpMatch {
   private:
