@@ -10,7 +10,7 @@ class Repl {
   public:
    /* keep reading from a stream until the code is well formed i.e.
       has balanced brackets and braces */
-   static SpError *read_until_complete(std::istream &stream, std::string &str, bool interactive = false);
+   static std::string read_until_complete(std::istream &stream, bool interactive = false);
 };
 
 #endif

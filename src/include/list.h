@@ -22,7 +22,7 @@ class SpList : public SpGCObject {
 
    /* these method names corrospond to their respective Spooner functions */
    size_t length() const { return items_.size(); }
-   void append(SpObject *obj) { items_.push_back(obj); }
+   void append(const SpObject *obj) { items_.push_back(obj->shallow_copy()); }
    SpObject *nth(const int index) const { return items_[index]; }
 
    bool equals(const SpObject *other) const;

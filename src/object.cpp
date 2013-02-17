@@ -1,4 +1,5 @@
 #include "include/object.h"
+#include "include/map.h"
 
 ObjectType str_to_type(const std::string& str) {
    if(str == "int") return T_INT;
@@ -7,3 +8,5 @@ ObjectType str_to_type(const std::string& str) {
    if(str == "list") return T_LIST;
    return T_NONE;
 }
+
+SpObject::SpObject(ObjectType type) : type_(type) { }

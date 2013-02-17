@@ -3,11 +3,9 @@
 
 #include "object.h"
 #include "function.h"
-#include "refobject.h"
 #include "env.h"
-#include "parser.h"
-#include "error.h"
-#include "operator.h"
+#include "expr.h"
+#include "list.h"
 
 #include <string>
 #include <stack>
@@ -15,33 +13,24 @@
 
 class SpVM {
   private:
-   SpEnv *cur_env_;
-   std::stack<SpObject *> obj_s_;
-   SpParser *parser_;
+   SpEnv *base_scope_;
 
-   /* create a new environment for a function call by treating
-      the top 'arity' objects on the stack as arguments */
-   void set_call_env(const int arity = 0);
-
-   /* close the current environment, deleting all its objects */
-   void close_env();
-
-   SpError *call_function(const SpFunction *func);
-   SpError *call_native_function(const SpNativeFunction *func);
-   SpError *call_function_by_name(const std::string name, const int arity); 
+   const SpObject *call_function(const SpFunction *func, SpEnv *env);
+   const SpObject *call_native_function(const SpNativeFunction *func, SpEnv *env);
+   const SpObject *call_function_by_name(const SpList *call_expr, SpEnv *env); 
 
   public:
-   SpVM();
+   SpVM() : base_scope_(new SpEnv()) { }
 
-   SpError *eval(TokenIter begin, TokenIter end);
+   SpEnv *base_scope() const { return base_scope_; }
 
-   SpError *import(const char *filename);
+   const SpObject *resolve(const std::string name, SpEnv *env);
 
-   void push_object(SpObject *obj);
-   SpObject *top_object() const;
-   void clear_objects();
+   const SpObject *eval(const SpExpr *expr, SpEnv *env);
+   const SpObject *eval(const SpObject *obj_expr, SpEnv *env);
 
-   SpEnv *env() const { return cur_env_; }
+   const SpObject *expr_as_object(const SpExpr *expr);
+   void import(const char *filename);
 };
 
 #endif

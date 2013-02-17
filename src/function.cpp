@@ -1,32 +1,41 @@
 #include "include/function.h"
 
-SpFunction::SpFunction(const SpObject *pattern) : 
-   SpGCObject(T_FUNCTION), native_(false), pattern_(pattern) { }
+#include "include/vm.h"
 
-SpFunction::SpFunction(const SpObject *pattern, const SpFunction *quotation) :
-   SpGCObject(T_FUNCTION), native_(false), pattern_(pattern), bytecode_(quotation->cbegin(), quotation->cend()) { }
-
-SpFunction::SpFunction(const SpObject* pattern, const TokenIter begin, const TokenIter end) :
-   SpGCObject(T_FUNCTION), native_(false), pattern_(pattern), bytecode_(begin, end) { }
+SpFunction::SpFunction(ArgList args, const SpList *pattern, const SpExpr *expr) :
+   SpGCObject(T_FUNCTION), native_(false), args_(args), 
+   pattern_(pattern ? pattern : new SpList()), expr_(expr) { }
 
 SpFunction::~SpFunction() {
-   // delete the patterns and bytecode
-   delete pattern_; pattern_ = NULL;
-   for (size_t i = 0; i < bytecode_.size(); i++) delete bytecode_[i], bytecode_[i] = NULL;
-   bytecode_.clear();
+   // delete the pattern and expression
+   delete pattern_; delete expr_;
 }
 
-SpNativeFunction::SpNativeFunction(const SpObject *pattern) : SpFunction(pattern) {
+SpNativeFunction::SpNativeFunction(ArgList args, const SpList *pattern) : 
+   SpFunction(args, pattern) {
    native_ = true;
 }
 
-SpNativeAdd::SpNativeAdd() : SpNativeFunction(
-   make_list({ new SpName("a"), new SpName("b") })) {
+SpNativeAdd::SpNativeAdd() : SpNativeFunction({ "a", "b" }) { }
+
+const SpObject *SpNativeAdd::native_eval(SpEnv *env, SpVM *vm) const {
+   return new SpIntValue(
+      ((SpIntValue *)env->resolve_name("a"))->value() + 
+      ((SpIntValue *)env->resolve_name("b"))->value());
 }
 
-SpError *SpNativeAdd::native_eval(SpEnv *env) const {
-   env->bind_name("$$", new SpIntValue(
-      ((SpIntValue *)env->resolve_name("a"))->value() + 
-      ((SpIntValue *)env->resolve_name("b"))->value()));
-   return NO_ERROR;
+SpNativeWith::SpNativeWith() : 
+   SpNativeFunction({ "x", "val", "body" }, 
+      new SpList({ new SpName("quote"), new SpName("_"), new SpName("quote") })) { }
+
+const SpObject *SpNativeWith::native_eval(SpEnv *env, SpVM *vm) const {
+   // first, bind the variables in a new scope
+   std::unique_ptr<SpEnv> call_env(new SpEnv());
+
+   // TODO: allow multiple variable declarations
+   call_env->bind_name(std::string(((SpName *)env->resolve_name("x"))->value()),
+      env->resolve_name("val")->shallow_copy());
+
+   // then, evaluate the quoted body
+   return vm->eval(env->resolve_name("body"), call_env.get());
 }

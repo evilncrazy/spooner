@@ -6,27 +6,30 @@
 #include <string>
 
 /* some macros */
-#define PARSE_ERROR(msg) new SpError(ERROR_PARSE, msg)
-#define RUNTIME_ERROR(msg) new SpError(ERROR_RUNTIME, msg)
+#define PARSE_ERROR(msg) throw SpParseError(msg)
+#define RUNTIME_ERROR(msg) throw SpRuntimeError(msg)
 
-#define PARSE_ERROR_F(msg, ...) new SpError(ERROR_PARSE, msg, __VA_ARGS__)
-#define RUNTIME_ERROR_F(msg, ...) new SpError(ERROR_RUNTIME, msg, __VA_ARGS__) 
+#define PARSE_ERROR_F(msg, ...) throw SpParseError(msg, __VA_ARGS__)
+#define RUNTIME_ERROR_F(msg, ...) throw SpRuntimeError(msg, __VA_ARGS__) 
 
-#define NO_ERROR NULL 
-
-/* different types of errors */
-enum ErrorType { ERROR_PARSE, ERROR_RUNTIME };
-
-class SpError {
+class SpRuntimeError : std::exception {
   private:
-   const int type_;
    std::string message_;
   public:
-   SpError(const int type, const std::string message);
-   SpError(const int type, const char *format, ...);
+   SpRuntimeError(const std::string message);
+   SpRuntimeError(const char *format, ...);
 
-   int type() const { return type_; }
-   std::string message() const { return message_; }
+   const char *what() const throw() { return message_.c_str(); }
+};
+
+class SpParseError : std::exception {
+  private:
+   std::string message_;
+  public:
+   SpParseError(const std::string message);
+   SpParseError(const char *format, ...);
+
+   const char *what() const throw() { return message_.c_str(); }
 };
 
 #endif

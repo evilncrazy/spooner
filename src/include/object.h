@@ -4,17 +4,17 @@
 #include <string>
 
 enum ObjectType {
-   T_NONE, T_INT, T_DECIMAL, T_FUNCTION, T_LIST, T_NAME, T_WILDCARD
+   T_NONE, T_INT, T_DECIMAL, T_FUNCTION, T_LIST, T_NAME, T_WILDCARD, T_MAP
 };
 
 ObjectType str_to_type(const std::string& str);
 
-/* defines the functionality and attributes shared by all objects in Spooner */
+// defines the functionality and attributes shared by all objects in Spooner 
 class SpObject {
   private:
    ObjectType type_;
   public:
-   SpObject(ObjectType type) : type_(type) { }
+   SpObject(ObjectType type);
 
    virtual ObjectType type() const { return type_; }
    virtual ~SpObject() { };

@@ -5,6 +5,7 @@
 #include "include/object.h"
 #include "include/vm.h"
 #include "include/repl.h"
+#include "include/expr.h"
 
 #include <cstdio>
 #include <stack>
@@ -14,57 +15,48 @@
 
 void init_native_functions(SpEnv *env) {
    env->bind_name("+", new SpNativeAdd());
+   env->bind_name("with", new SpNativeWith());
 }
 
-void print_error_message(SpError *err) {
-   printf(err->type() == ERROR_PARSE ? "Parse Error: %s\n" : "Runtime Error: %s\n", err->message().c_str());
-}
-
-SpError *read_and_eval(SpVM &vm) {
-   /* start the REPL */
-   std::string input;
-
-   /* ask for input */
-   SpError *err = Repl::read_until_complete(std::cin, input, true);
-   if (err) return err;
-
-   /* evaluate this line */
-   SpParser parser(input);
-   err = parser.parse();
-   if (err) return err;
-
-   printf("Successfully parsed %d tokens: ", (int)parser.num_tokens());
-   for (auto it = parser.cbegin_token(); it != parser.cend_token(); ++it) {
-      printf("%s ", (*it)->value().c_str());
+void print_expr(const SpExpr *expr) {
+   printf("(");
+   if (expr->head()) {
+      printf("%s", expr->head()->value().c_str());
+      for (auto it = expr->cbegin(); it != expr->cend(); ++it) {
+         printf(" ");
+         print_expr(*it);
+      }
    }
+   printf(")");
+}
+
+void read_and_eval(SpVM &vm) {
+   // read and evaluate 
+   const SpExpr *expr = SpParser(Repl::read_until_complete(std::cin, true)).parse();
+
+   printf("Successfully parsed expr:\n");
+   print_expr(expr);
    printf("\n");
 
-   /* evaluate the bytecode */
-   err = vm.eval(parser.cbegin_token(), parser.cend_token());
-   if (err) return err; 
+   // evaluate the bytecode 
+   const SpObject *result = vm.eval(expr, vm.base_scope());
 
-   /* print out the return value */
-   if (vm.top_object()) {
-      SpObject *result = vm.top_object();
+   if (result) {
       printf("%s\n", result->inspect().c_str());
-      vm.clear_objects();
-   } else printf("nil\n");
-
-   return NO_ERROR;
+   }
 }
 
 int main(int argc, const char * argv[]) {
-   /* TODO: use an external library to parse command lines */
+   // TODO: use an external library to parse command lines 
    if (argc == 1) {
-      /* initialize the VM */
+      // initialize the VM 
       SpVM vm;
 
-      /* initialize native functions */
-      init_native_functions(vm.env());
+      // initialize native functions in the base scope 
+      init_native_functions(vm.base_scope());
 
       /* import the core library */
       /* TODO: have configuration for file paths */
-      SpError *err = NULL;
       //vm.import("../lib/core.sp");
 //      if (err) { print_error_message(err); return 0; }
 
@@ -72,8 +64,13 @@ int main(int argc, const char * argv[]) {
       std::string input;
 
       while (1) {
-         err = read_and_eval(vm);
-         if (err) { print_error_message(err); delete err; }
+         try {
+            read_and_eval(vm);
+         } catch (SpRuntimeError &ex) {
+            printf("Runtime Error: %s\n", ex.what());
+         } catch (SpParseError &ex) {
+            printf("Parse Error: %s\n", ex.what());
+         }
       }
    }
 

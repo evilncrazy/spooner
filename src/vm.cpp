@@ -2,180 +2,144 @@
 
 #include <algorithm>
 #include <fstream>
+#include <cstring>
 
-#include "include/list.h"
 #include "include/value.h"
 #include "include/pattern.h"
 #include "include/repl.h"
+#include "include/operator.h"
+#include "include/parser.h"
 
-SpVM::SpVM() : cur_env_(new SpEnv(NULL)) { }
-
-void SpVM::set_call_env(const int arity) {
-   cur_env_ = new SpEnv(env());
-
-   /* TODO: declare a special variable to hold the function name */
-
-   /* declare special $_ local variable to hold the arguments */
-   std::vector<SpObject *> args;
-   for (int i = 0; i < arity; i++) {
-      args.push_back(obj_s_.top()); 
-      obj_s_.pop();
-   }
-
-   std::reverse(args.begin(), args.end());
-   env()->bind_name("$_", new SpRefObject(new SpList(args)));
+const SpObject *SpVM::call_function(const SpFunction *f, SpEnv *env) {
+   // evaluate the function expression
+   return eval(f->expr(), env);
 }
 
-void SpVM::close_env() {
-   SpEnv *old = env();
-   cur_env_ = old->parent();
-
-   /* this should free any GCValues that don't have any objects
-      referencing it */
-   delete old; old = NULL;
-}
-
-SpError *SpVM::call_function(const SpFunction *f) {
-   /* now, evaluate the function opcodes */
-   SpError *err = eval(f->cbegin(), f->cend());
-   if (err) return err;
-
-   return NO_ERROR;
-}
-
-SpError *SpVM::call_native_function(const SpNativeFunction *f) {
+const SpObject *SpVM::call_native_function(const SpNativeFunction *f, SpEnv *env) {
    // evaluate this native function
-   SpError *err = f->native_eval(env());
-   if (err) return err;
-
-   // retrieve the return value
-   push_object(env()->resolve_name("$$")->shallow_copy());
-   return NO_ERROR;
+   return f->native_eval(env, this);
 }
 
-SpError *SpVM::call_function_by_name(const std::string name, const int arity) {
-   /* go into the call scope */
-   set_call_env(arity);
-
-   /* check what type of object this is */
-   const SpObject *obj = env()->resolve_name(name, env()->depth() + 1)->self();
-   if (obj && obj->self()->type() == T_FUNCTION) {
-      SpMatch match = SpMatch::match(((SpFunction *)obj)->pattern(), env()->resolve_name("$_")->self());
-
-      if (match.is_match()) {
-         /* find the what arguments have been bound to which variable names */
-         if (arity) {
-            for (auto it = match.cbegin(); it != match.cend(); it++) {
-               env()->bind_name(it->first, it->second->shallow_copy());
-            }
-         }
-
-         /* call the function (either natively or in the VM) */
-         SpFunction *func = (SpFunction *)obj;
-         SpError *err = (func->is_native()) ?
-            call_native_function((SpNativeFunction *)func) :
-            call_function(func);
-
-         if (err) return err;
-         return NO_ERROR;
-      }
-   } 
+const SpObject *SpVM::call_function_by_name(const SpList *call_expr, SpEnv *env) {
+   // check what type of object this is
+   std::string name = ((SpName *)call_expr->nth(0))->value();
    
-   /* close the call scope */
-   close_env();
+   const SpObject *obj = resolve(name, env);
+   if (obj && obj->self()->type() == T_FUNCTION) {
+      SpFunction *func = (SpFunction *)obj->self();
 
-   return RUNTIME_ERROR_F("No patterns found for '%s' that matches the arguments given", name.c_str());
-}
-
-SpError *SpVM::eval(TokenIter begin, TokenIter end) {
-   TokenIter it;
-   for (it = begin; it != end; ++it) {
-      std::string val = (*it)->value();
-      switch ((*it)->type()) {
-         case TOKEN_NAME: {
-            const SpObject *obj = env()->resolve_name(val); 
-            if (obj == NULL)
-               return RUNTIME_ERROR_F("Use of undefined variable '%s'", val.c_str());
-
-            push_object(obj->shallow_copy());
-            break;
-         }
-         case TOKEN_NUMERIC:
-            push_object(new SpIntValue(atoi(val.c_str())));
-            break;
-         case TOKEN_OPERATOR: {
-            /* all operators are just binary function calls
-               so we get the function associated with this
-               operator and call it */
-            SpOperator *op = SpParser::find_operator(val);
-            if (op->func_name() == "") return RUNTIME_ERROR("Operator not supported");
-            
-            SpError *err = call_function_by_name(op->func_name(), (*it)->arity());
-            if (err) return err;
-            break;
-         }
-         case TOKEN_FUNCTION_CALL: {
-            SpError *err = call_function_by_name(val, (*it)->arity());
-            if (err) return err;
-            break;
-         }
-         case TOKEN_LEFT_BRACE: {
-            /* we'll collect the quoted tokens from here */ 
-            /* TODO: capture variables */
-            std::vector<SpToken *> quo;
-            int num_quoted = (*it)->arity();
-            for (int i = 0; i < num_quoted; i++) {
-               ++it;
-               quo.push_back(new SpToken(**it));
+      // now, evaluate the arguments in a new scope
+      // this is because Spooner is lexically scoped, so any this function call
+      // can only access its arguments
+      std::unique_ptr<SpEnv> call_env(new SpEnv());
+      for (size_t arg_index = 0; arg_index < call_expr->length() - 1; arg_index++) {
+         SpObject *arg = call_expr->nth(arg_index + 1);
+         if (arg_index < func->pattern()->length()) {
+            // check if the pattern is a name object
+            if (func->pattern(arg_index)->type() == T_NAME) {
+               const char *name = ((SpName *)func->pattern(arg_index))->value();
+               // we handle the 'quote' name specially
+               if (!strcmp(name, "quote")) {
+                  // we need to quote this argument and not evaluate it
+                  call_env->bind_name(func->arguments(arg_index), arg);
+               } else if(!strcmp(name, "_")) {
+                  call_env->bind_name(func->arguments(arg_index), eval(arg, env));
+               }
+            } else {
+               // check if the pattern matches
+               const SpObject *result = eval(arg, env);
+               if (SpMatch::is_match(func->pattern(arg_index), result)) {
+                  call_env->bind_name(func->arguments(arg_index), result);
+               }
             }
-
-            push_object(new SpRefObject(new SpFunction(NULL, quo.cbegin(), quo.cend())));
-            break;
+         } else {
+            // no pattern means anything matches
+            call_env->bind_name(func->arguments(arg_index), eval(arg, env));
          }
+      }
+
+      // call the function (either natively or in the VM) using the new environment 
+      return (func->is_native()) ?
+         call_native_function((SpNativeFunction *)func, call_env.get()) :
+         call_function(func, call_env.get());
+   } 
+
+   RUNTIME_ERROR_F("No patterns found for '%s' that matches the arguments given", name.c_str());
+}
+
+const SpObject *SpVM::resolve(const std::string name, SpEnv *env) {
+   // first, search in the current scope
+   const SpObject *obj = env->resolve_name(name);
+   if (obj) return obj;
+
+   // now search in the global (base) environment
+   return base_scope()->resolve_name(name);
+}
+
+const SpObject *SpVM::eval(const SpExpr *expr, SpEnv *env) {
+   return eval(expr_as_object(expr), env);
+}
+
+const SpObject *SpVM::eval(const SpObject *obj_expr, SpEnv *env) {
+   // check whether this expression is an atom or a function call
+   if (obj_expr->type() == T_LIST) {
+      // this is just another expression
+      return call_function_by_name((SpList *)obj_expr->self(), env);
+   } else {
+      // evaluate this atom
+      if (obj_expr->type() == T_NAME) {
+         const SpObject *obj = resolve(((SpName *)obj_expr)->value(), env); 
+         if (obj == NULL)
+            RUNTIME_ERROR_F("Undeclared variable '%s'", ((SpName *)obj_expr)->value());
+         return obj->shallow_copy();
+      } else return obj_expr; // this is already evaluated
+   }
+}
+
+const SpObject *SpVM::expr_as_object(const SpExpr *expr) {
+   SpToken *head = expr->head();
+   
+   if (head->type() == TOKEN_FUNCTION_CALL || head->type() == TOKEN_OPERATOR) {
+      // convert this expr (including the args) into SpObjects
+      std::string name(head->value());
+      if (head->type() == TOKEN_OPERATOR) {
+         // all operators are just binary function calls
+         // so we get the function associated with this
+         // operator and use it as the head
+         SpOperator *op = SpParser::find_operator(head->value());
+         if (op == NULL || (name = op->func_name()) == "")
+            RUNTIME_ERROR("Operator not supported");
+      }
+
+      // prepare the expr list
+      SpList *args = new SpList({ new SpName(name.c_str()) });
+      
+      // convert each argument recursively and append it to the list
+      for (auto it = expr->cbegin(); it != expr->cend(); ++it) {
+         args->append(expr_as_object(*it));
+      }
+
+      return new SpRefObject(args);
+   } else {
+      std::string val = head->value();
+      switch (head->type()) {
+         case TOKEN_NAME: 
+            return new SpName(val.c_str());
+         case TOKEN_NUMERIC:
+            return new SpIntValue(atoi(val.c_str()));
          default:
-            return RUNTIME_ERROR("Unsupported operation");
+            RUNTIME_ERROR("Unsupported operation");
       }
    }
-
-   return NO_ERROR;
 }
 
-SpError *SpVM::import(const char *filename) {
+void SpVM::import(const char *filename) {
    std::ifstream in(filename);
-   if (!in.good()) return RUNTIME_ERROR("Cannot open import file");
+   if (!in.good()) RUNTIME_ERROR("Cannot open import file");
 
-   std::string buffer;
-
-   /* create a new parser to parse this file */
+   // create a new parser to parse this file
    while (!in.eof()) {
-      SpError *err = Repl::read_until_complete(in, buffer);
-      if (err) return err;
-
-      SpParser parser(buffer);
-      err = parser.parse();
-      if (err) return err;
-
-      /* evaluate this code */
-      err = eval(parser.cbegin_token(), parser.cend_token());
-      if (err) return err;
-   }
-   return NO_ERROR;
-}
-
-void SpVM::push_object(SpObject *obj) {
-   obj_s_.push(obj);
-}
-
-SpObject *SpVM::top_object() const {
-   return obj_s_.empty() ? NULL : obj_s_.top();
-}
-
-void SpVM::clear_objects() {
-   while(!obj_s_.empty()) {
-      SpObject *top = obj_s_.top();
-      obj_s_.pop();
-      if (top != NULL) {
-         delete top; top = NULL;
-      }
+      // evaluate each complete form
+      eval(SpParser(Repl::read_until_complete(in)).parse(), base_scope());
    }
 }
