@@ -9,19 +9,16 @@
 
 SpParser::SpParser(const std::string &source) : source_(source), it_(source.cbegin()) { }
 
-SpParser::~SpParser() {
-   /* delete any remaining tokens */
-   while (!token_list_.empty()) delete token_list_.back(), token_list_.pop_back();
-}
-
 SpOperator *SpParser::find_operator(const std::string value) {
    /* initialize the operators table as a static variable */
    static auto operators = std::unordered_map<std::string, SpOperator> {
-      { "*", SpOperator("*", 10, ASSOC_LEFT, "*") },
-      { "/", SpOperator("/", 10, ASSOC_LEFT, "/") },
+      { "*", SpOperator("*", 10, ASSOC_LEFT, "") },
+      { "/", SpOperator("/", 10, ASSOC_LEFT, "") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
-      { "-", SpOperator("-", 5, ASSOC_LEFT, "-") },
-      { "=", SpOperator("=", 2, ASSOC_LEFT, "let") }
+      { "-", SpOperator("-", 5, ASSOC_LEFT, "") },
+      { "=", SpOperator("=", 2, ASSOC_LEFT, "") },
+      { ")", SpOperator(")", 0, ASSOC_NONE, "") },
+      { "]", SpOperator("]", 0, ASSOC_NONE, "") }
    };
 
    /* find the operator in the hash table */
@@ -36,14 +33,21 @@ char SpParser::peek_next() {
 }
 
 SpToken *SpParser::next_token() {
-   /* ignore whitespace by moving to the next non-whitespace character */
+   // if we've peeked before, then we simply grab what we peeked as the next token
+   if (peek) {
+      SpToken *next = peek;
+      peek = NULL;
+      return next;
+   }
+
+   // ignore whitespace by moving to the next non-whitespace character 
    while (it_ != source().end() && isspace(*it_)) { ++it_; }
 
-   /* keep track of where this token started */
+   // keep track of where this token started 
    StrIter start_it = it_;
    size_t start = std::distance(start_it, source().cbegin());
 
-   /* check what type of token begins at the current character */
+   // check what type of token begins at the current character 
    switch (*it_) {
       /* operator tokens */
       case '*': case '/': case '+': case '-':
@@ -67,45 +71,15 @@ SpToken *SpParser::next_token() {
          while (it_ != source().end() && isdigit(*it_)) { ++it_; }
          return new SpToken(std::string(start_it, it_), TOKEN_NUMERIC, 0, start);
       }
-
-      /* string literals */
-      case '"': {
-         std::vector<char> str_buf;
-         ++it_;
-         while (it_ != source().end()) {
-            char c = *it_++;
-            if (c == '\\' && it_ != source().end()) {
-               switch(*it_++) {
-                  case '\\': c = '\\'; break;
-                  case 'n': c = '\n'; break;
-                  case 't': c = '\t'; break;
-                  default: continue;
-               }
-            } else if (c == '"') break;
-            str_buf.push_back(c);
-         }
-
-         return new SpToken(std::string(str_buf.begin(), str_buf.end()), TOKEN_STRING, 0, start);
-      }
       
       default:
          /* word tokens (TODO: change into a case jump) */
-         if (isalpha(*it_) || *it_ == '_' || *it_ == '$' || (*it_ == '@' && isalpha(peek_next()))) { 
-            /* if a word token begins with a sigil, then that
-               means we'll need to resolve it as a variable name */
-            bool sigil = (*it_ == '$') ? ++it_, true : false;
-
-            /* if a word token begins with a '@', it's a constant */
-            if (*it_ == '@') ++it_;
-
+         if (isalpha(*it_) || *it_ == '_') { 
             /* move the iterator to the first non-name character */
             while (it_ != source().end() && (
                isalpha(*it_) || isdigit(*it_) || *it_ == '_')) { ++it_; }
             
-            if (sigil)
-               return new SpToken(std::string(start_it + 1, it_), TOKEN_NAME, 0, start);
-            else
-               return new SpToken(std::string(start_it, it_), TOKEN_BAREWORD, 0, start);
+            return new SpToken(std::string(start_it, it_), TOKEN_NAME, 0, start);
          } else {
             /* Unrecognized symbol */
             return new SpToken();
@@ -117,173 +91,101 @@ SpToken *SpParser::next_token() {
    return new SpToken(); /* empty constructor creates EOF token */
 }
 
-SpError *SpParser::parse() {
+const SpExpr *SpParser::parse() {
    /* check if there is something in the source */
    if (source().length() > 0) {
       char first = source()[0];
-      if (first == '#') return NO_ERROR; /* comment, so ignore */
-      else if (first == '(') {
-         ++it_; return parse_expr();
-      } else if(first == '[') {
-         ++it_; return parse_function();
-      } else return PARSE_ERROR("Expected '(' or '['");
+      if (first == '#') return NULL; /* comment, so ignore */
+      else if (first == '(' || first == '[') {
+         return parse_primary();
+      } else PARSE_ERROR("Expected '(' or '['");
    }
-   return NO_ERROR;
+
+   return NULL;
 }
 
-SpError *SpParser::parse_expr() {
-   std::stack<SpToken *> op_s; /* delayed operator stack */
+const SpExpr *SpParser::parse_primary() {
+   const SpExpr *expr;
+   SpToken *next = next_token();
 
-   SpToken *token = NULL, *prev_token = NULL;
-   while (token = next_token(), token->type() != TOKEN_EOF) {
-      switch (token->type()) {
-         case TOKEN_NUMERIC:
-         case TOKEN_STRING:
-            push_token(token);
-            if (prev_token && prev_token->type() != TOKEN_OPERATOR &&
-                prev_token->type() != TOKEN_LEFT_PARENS &&
-                prev_token->type() != TOKEN_LEFT_SQUARE_BRACKET &&
-                prev_token->type() != TOKEN_LEFT_BRACE) {
-               /* implicit concatenation */
-               push_token(new SpToken("append", TOKEN_FUNCTION_CALL, 2, token->start_pos()));
-            }
-            break;
-         case TOKEN_BAREWORD:
-         case TOKEN_NAME:
-            push_token(token);
-            break;
-         case TOKEN_OPERATOR: {
-            /* if the previous token is NULL, then that means this operator is
-               the first token in an expr i.e. it is a prefix operator */
-            /* TODO: implement prefix operators */
+   if (next->type() == TOKEN_LEFT_PARENS) {
+      expr = parse_expr(parse_primary(), 1);
+      if (next_token()->type() != TOKEN_RIGHT_PARENS) 
+         PARSE_ERROR("Expected ')' at end of expression");
+   } else if(next->type() == TOKEN_LEFT_SQUARE_BRACKET) {
+      expr = parse_function();
+      if (next_token()->type() != TOKEN_RIGHT_SQUARE_BRACKET)
+         PARSE_ERROR("Expected ']' at end of function call");
+   } else {
+      expr = new SpExpr(next);
+   }
 
-            /* identify the new operator, and the operator at the top of the stack
-               pop the top operator if the new operator has a lower precedence than the top */
-            SpOperator *op_n = find_operator(token->value()), *op_t = NULL;
-            while (op_n && !op_s.empty() &&
-                   (op_t = find_operator(op_s.top()->value())) &&
-                   ((op_n->assoc() == ASSOC_LEFT && op_n->prec() <= op_t->prec()) ||
-                   (op_n->assoc() == ASSOC_RIGHT && op_n->prec() < op_t->prec()))) {
-               /* this means that op_t should be processed before op_n */
-               push_token(op_s.top()); op_s.pop();
-            }
+   return expr;
+}
 
-            /* finally, push the new token on to the stack */
-            op_s.push(token);
-            break;
-         }
-         case TOKEN_LEFT_PARENS: {
-            /* parsing a new expression */
-            SpError *err = parse_expr();
-            if (err) return err;
-            break;
-         }
-         case TOKEN_RIGHT_PARENS:
-         case TOKEN_RIGHT_BRACE:
-            /* this has expression closed */
-            /* TODO: possibly in the far future, have post-fix operators */
+const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
+   while (true) {
+      SpToken *token = peek_token();
+      SpOperator *op = find_operator(token->value());
+      if (op == NULL) PARSE_ERROR_F("Undefined operator '%s'", token->value().c_str());
 
-            /* output the leftover operators */
-            while (!op_s.empty()) push_token(op_s.top()), op_s.pop();
-            return NO_ERROR;
-         case TOKEN_LEFT_SQUARE_BRACKET: {
-            /* left square bracket, beginning of a function call */
-            SpError *err = parse_function();
-            if (err) return err;
-            break;
-         }
-         case TOKEN_LEFT_BRACE: {
-            /* push through the left brace to inform the VM that
-               what follows are quoted tokens and should be not be
-               evaluated. We keep a pointer to this token because
-               we need to set its arity to the number of quoted 
-               tokens later, so the VM can know when the quoted
-               tokens end */
-            SpToken *brace_token = token;
-            push_token(token);
+      // loop while the next token has >= precedence that the minimum precedence
+      if (op->prec() < prec) break;
 
-            int prev_num_tokens = token_list_.size();
-            SpError *err = parse_expr();
-            if (err) return err;
+      next_token();
+      const SpExpr *rhs = parse_primary();
+      while (true) {
+         SpOperator *next = find_operator(peek_token()->value());
+         if (next == NULL) PARSE_ERROR_F("Undefined operator '%s'", peek_token()->value().c_str());
 
-            /* now, the stuff in the quotations have all been parsed.
-               so we set the arity of the brace token to be the number
-               of quoted tokens */
-            brace_token->set_arity(token_list_.size() - prev_num_tokens);
+         // we loop while the next token is:
+         // a) a left assoc operator whose precedence is > op's
+         // b) a right assoc operator whose precedence is = op's
+         if ((next->assoc() == ASSOC_LEFT && next->prec() <= op->prec()) ||
+             (next->assoc() == ASSOC_RIGHT && next->prec() != op->prec()) ||
+             (next->assoc() == ASSOC_NONE)) 
             break;
-         }
-         default: 
-            break;
+
+         rhs = parse_expr(rhs, next->prec());
       }
 
-      prev_token = token;
+      lhs = new SpExpr(token, { lhs, rhs });
    }
 
-   /* we arrive here if we hit an EOF before we see a right parenthesis,
-      which means this expression is not closed. This should never happen
-      if the REPL balances the expressions for us */
-   return PARSE_ERROR("Expected ')' at end of expression");
+   return lhs;
 }
 
-SpError *SpParser::parse_function() {
-   int arg_count = 0; /* number of arguments in this function */
+const SpExpr *SpParser::parse_function() {
+   int arg_count = 0; // number of arguments in this function 
    SpToken *token = NULL;
 
-   /* a function call must begin with TOKEN_NAME or TOKEN_OPERATOR, 
-      followed by args */
-   if (token = next_token(),
-         (token->type() == TOKEN_BAREWORD || token->type() == TOKEN_OPERATOR)) {
-      /* keep track of the name of this function and its start */
-      std::string name = token->value();
-      int start = token->start_pos();
-     
-      /* parse the function arguments */
-      while (token = next_token(), token->type() != TOKEN_EOF) {
-         switch (token->type()) {
-            case TOKEN_LEFT_SQUARE_BRACKET: {
-               /* a new function call */
-               SpError *err = parse_function();
-               if (err) return err; 
+   // a function call must begin with TOKEN_NAME or TOKEN_OPERATOR, followed by args 
+   if (token = next_token(), (token->type() == TOKEN_NAME || token->type() == TOKEN_OPERATOR)) {
+      // create function call expr
+      SpExpr *expr = new SpExpr(new SpToken(
+         token->value(), TOKEN_FUNCTION_CALL, arg_count, token->start_pos())); 
+
+      // parse the function arguments 
+      SpToken *next = NULL;
+      while (next = peek_token(), token->type() != TOKEN_EOF) {
+         switch (next->type()) {
+            case TOKEN_LEFT_SQUARE_BRACKET: 
+            case TOKEN_LEFT_PARENS: 
+               // beginning of a primary expression
+               expr->add(parse_primary());
                break;
-            }
             case TOKEN_RIGHT_SQUARE_BRACKET:
-               /* this function call ended, so we push on the function call token */
-               push_token(new SpToken(name, TOKEN_FUNCTION_CALL, arg_count, start));
-               return NO_ERROR;
-            case TOKEN_LEFT_PARENS: {
-               /* a new expr */
-               SpError *err = parse_expr();
-               if (err) return err; 
-               break;
-            }
-            case TOKEN_LEFT_BRACE: {
-               /* this is the same as how parse_expr() parses LEFT_BRACEs */
-               SpToken *brace_token = token;
-               push_token(token);
-
-               int prev_num_tokens = token_list_.size();
-               SpError *err = parse_expr();
-               if (err) return err;
-
-               brace_token->set_arity(token_list_.size() - prev_num_tokens);
-               break;
-            }
+               // this function call ended, so we return the expr that we have been
+               // building
+               return expr;
             default:
-               /* an argument of this function */
-               push_token(token);
+               // this token is an argument of this function 
+               expr->add(parse_primary());
          }
 
          arg_count++;
       }
-   } else {
-      return PARSE_ERROR_F("%s cannot be used as a function", token->value().c_str());
-   }
-  
-   /* the function call wasn't complete */
-   return PARSE_ERROR("Function call incomplete. Expected ']'");
-}
+   } else PARSE_ERROR_F("%s cannot be used as a function", token->value().c_str());
 
-void SpParser::push_token(SpToken *token) {
-   token_list_.push_back(token);
+   PARSE_ERROR("Incomplete function call");
 }
-

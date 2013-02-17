@@ -1,8 +1,9 @@
 #include "include/repl.h"
 
 #include <stack>
+#include <cmath>
 
-SpError *Repl::read_until_complete(std::istream &stream, std::string &str, bool interactive) { 
+std::string Repl::read_until_complete(std::istream &stream, bool interactive) { 
    /* start the REPL */
    std::string buffer;
    int depth = 0;
@@ -23,9 +24,9 @@ SpError *Repl::read_until_complete(std::istream &stream, std::string &str, bool 
          else if(input[i] == ')' || input[i] == ']' || input[i] == '}') {
             /* note that the ASCII values for matching bracket pairs
                differ by at most 2 */
-            if (brackets.empty() || (input[i] - brackets.top()) > 2) {
+            if (brackets.empty() || abs(input[i] - brackets.top()) > 2) {
                /* oops, we're closing a unmatched bracket */
-               return RUNTIME_ERROR_F("Unexpected '%c', closing an unmatched bracket", input[i]);
+               RUNTIME_ERROR_F("Unexpected '%c', closing an unmatched bracket", input[i]);
             } else {
                /* good, we have a matching bracket */
                brackets.pop();
@@ -43,6 +44,5 @@ SpError *Repl::read_until_complete(std::istream &stream, std::string &str, bool 
       if (interactive) printf(".%s ", std::string(++depth, '.').c_str());
    }
 
-   str = buffer;
-   return NO_ERROR;
+   return buffer;
 }
