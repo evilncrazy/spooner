@@ -1,6 +1,9 @@
 #ifndef SPOONER_FUNCTION_H
 #define SPOONER_FUNCTION_H
 
+#include <string>
+#include <vector>
+
 #include "env.h"
 #include "error.h"
 #include "gcobject.h"
@@ -9,9 +12,6 @@
 #include "value.h"
 #include "name.h"
 #include "expr.h"
-
-#include <string>
-#include <vector>
 
 class SpVM; // forward decl for SpNativeFunction
 
@@ -25,7 +25,8 @@ class SpFunction : public SpGCObject {
    const SpList *pattern_;
    const SpExpr *expr_;
   public:
-   SpFunction(ArgList args, const SpList *pattern = NULL, const SpExpr *expr = NULL);
+   SpFunction(ArgList args, const SpList *pattern = NULL,
+      const SpExpr *expr = NULL, const ObjectType type = T_FUNCTION);
    ~SpFunction();
 
    const SpList *pattern() const { return pattern_; }
@@ -35,7 +36,7 @@ class SpFunction : public SpGCObject {
 
    const SpExpr *expr() const { return expr_; }
 
-   bool equals(const SpObject *other) const { return false; }
+   bool equals(const SpObject * /* other */) const { return false; }
    bool is_truthy() const { return expr_ && expr_->length() > 0; }
 
    std::string inspect() const { return "(Function)"; }
@@ -50,12 +51,18 @@ class SpNativeFunction : public SpFunction {
 class SpNativeAdd : public SpNativeFunction {
   public:
    SpNativeAdd();
-   const SpObject *native_eval(SpEnv *env, SpVM *vm) const; 
+   const SpObject *native_eval(SpEnv *env, SpVM *vm) const;
 };
 
 class SpNativeWith : public SpNativeFunction {
   public:
    SpNativeWith();
+   const SpObject *native_eval(SpEnv *env, SpVM *vm) const;
+};
+
+class SpNativeDef : public SpNativeFunction {
+  public:
+   SpNativeDef();
    const SpObject *native_eval(SpEnv *env, SpVM *vm) const;
 };
 

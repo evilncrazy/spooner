@@ -4,7 +4,8 @@
 #include <string>
 
 enum ObjectType {
-   T_NONE, T_INT, T_DECIMAL, T_FUNCTION, T_LIST, T_NAME, T_WILDCARD, T_MAP
+   T_NONE, T_INT, T_DECIMAL, T_FUNCTION, T_CLOSURE, T_LIST, T_EXPR, T_NAME, 
+   T_MAP
 };
 
 ObjectType str_to_type(const std::string& str);
@@ -14,7 +15,7 @@ class SpObject {
   private:
    ObjectType type_;
   public:
-   SpObject(ObjectType type);
+   explicit SpObject(ObjectType type);
 
    virtual ObjectType type() const { return type_; }
    virtual ~SpObject() { };

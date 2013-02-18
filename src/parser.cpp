@@ -18,7 +18,8 @@ SpOperator *SpParser::find_operator(const std::string value) {
       { "-", SpOperator("-", 5, ASSOC_LEFT, "") },
       { "=", SpOperator("=", 2, ASSOC_LEFT, "") },
       { ")", SpOperator(")", 0, ASSOC_NONE, "") },
-      { "]", SpOperator("]", 0, ASSOC_NONE, "") }
+      { "]", SpOperator("]", 0, ASSOC_NONE, "") },
+      { "}", SpOperator("}", 0, ASSOC_NONE, "") }
    };
 
    /* find the operator in the hash table */
@@ -81,9 +82,8 @@ SpToken *SpParser::next_token() {
             
             return new SpToken(std::string(start_it, it_), TOKEN_NAME, 0, start);
          } else {
-            /* Unrecognized symbol */
-            return new SpToken();
-            // return new SpToken("", TOKEN_UNKNOWN, 0, start);
+            // Unrecognized symbol 
+            PARSE_ERROR_F("Unrecognized symbol '%c'\n", *it_);
          }
    }
    
@@ -96,7 +96,7 @@ const SpExpr *SpParser::parse() {
    if (source().length() > 0) {
       char first = source()[0];
       if (first == '#') return NULL; /* comment, so ignore */
-      else if (first == '(' || first == '[') {
+      else if (first == '(' || first == '[' || first == '{') {
          return parse_primary();
       } else PARSE_ERROR("Expected '(' or '['");
    }
@@ -116,6 +116,11 @@ const SpExpr *SpParser::parse_primary() {
       expr = parse_function();
       if (next_token()->type() != TOKEN_RIGHT_SQUARE_BRACKET)
          PARSE_ERROR("Expected ']' at end of function call");
+   } else if(next->type() == TOKEN_LEFT_BRACE) {
+      expr = new SpExpr(new SpToken('{', TOKEN_CLOSURE, 0, next->start_pos()), 
+         { parse_expr(parse_primary(), 1) });
+      if (next_token()->type() != TOKEN_RIGHT_BRACE)
+         PARSE_ERROR("Expected '}' at end of closure");
    } else {
       expr = new SpExpr(next);
    }
@@ -131,8 +136,8 @@ const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
 
       // loop while the next token has >= precedence that the minimum precedence
       if (op->prec() < prec) break;
-
       next_token();
+
       const SpExpr *rhs = parse_primary();
       while (true) {
          SpOperator *next = find_operator(peek_token()->value());

@@ -6,6 +6,7 @@
 #include "env.h"
 #include "expr.h"
 #include "list.h"
+#include "closure.h"
 
 #include <string>
 #include <stack>
@@ -15,9 +16,11 @@ class SpVM {
   private:
    SpEnv *base_scope_;
 
-   const SpObject *call_function(const SpFunction *func, SpEnv *env);
+   bool is_match_pattern(const SpObject *pattern, const SpObject *arg);
+
+   const SpObject *call_function_with_env(const SpFunction *func, SpEnv *env);
    const SpObject *call_native_function(const SpNativeFunction *func, SpEnv *env);
-   const SpObject *call_function_by_name(const SpList *call_expr, SpEnv *env); 
+   const SpObject *call_function(const std::string &name, const SpFunction *func, const SpExpr *call_expr, SpEnv *env); 
 
   public:
    SpVM() : base_scope_(new SpEnv()) { }
@@ -27,10 +30,10 @@ class SpVM {
    const SpObject *resolve(const std::string name, SpEnv *env);
 
    const SpObject *eval(const SpExpr *expr, SpEnv *env);
-   const SpObject *eval(const SpObject *obj_expr, SpEnv *env);
 
-   const SpObject *expr_as_object(const SpExpr *expr);
    void import(const char *filename);
+   
+   void close_over(SpClosure *closure, const SpObject *expr, SpEnv *env);
 };
 
 #endif

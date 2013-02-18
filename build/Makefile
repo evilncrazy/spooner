@@ -3,8 +3,8 @@ CFLAGS = -Wall -Wextra -pedantic -std=c++0x -g
 SF = ../src
 HF = ../src/include
 BF = ../bin
-OB = object.o value.o name.o refobject.o gcobject.o list.o function.o
-AL = operator.o parser.o error.o env.o $(OB) token.o vm.o pattern.o repl.o main.o
+OB = object.o value.o name.o refobject.o gcobject.o list.o function.o closure.o exprobject.o
+AL = expr.o operator.o parser.o error.o env.o $(OB) token.o vm.o pattern.o repl.o main.o
 
 all : $(BF)/spooner
 
@@ -35,10 +35,19 @@ name.o : $(SF)/name.cpp $(HF)/name.h $(HF)/object.h
 list.o : $(SF)/list.cpp $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h
 	$(CC) $(CFLAGS) -c $(SF)/list.cpp
 
-function.o : $(SF)/function.cpp $(HF)/function.h $(HF)/env.h $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h
+function.o : $(SF)/function.cpp $(HF)/function.h $(HF)/env.h $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h $(HF)/exprobject.h
 	$(CC) $(CFLAGS) -c $(SF)/function.cpp
 
-parser.o : $(SF)/parser.cpp $(HF)/parser.h $(HF)/operator.h $(HF)/error.h
+closure.o : $(SF)/closure.cpp $(HF)/closure.h $(HF)/env.h
+	$(CC) $(CFLAGS) -c $(SF)/closure.cpp
+
+exprobject.o : $(SF)/exprobject.cpp $(HF)/exprobject.h
+	$(CC) $(CFLAGS) -c $(SF)/exprobject.cpp
+
+expr.o : $(SF)/expr.cpp $(HF)/expr.h $(HF)/token.h
+	$(CC) $(CFLAGS) -c $(SF)/expr.cpp
+
+parser.o : $(SF)/parser.cpp $(HF)/parser.h $(HF)/operator.h $(HF)/expr.h $(HF)/error.h
 	$(CC) $(CFLAGS) -c $(SF)/parser.cpp
 
 token.o : $(SF)/token.cpp $(HF)/token.h
@@ -47,7 +56,7 @@ token.o : $(SF)/token.cpp $(HF)/token.h
 operator.o : $(SF)/operator.cpp $(HF)/operator.h
 	$(CC) $(CFLAGS) -c $(SF)/operator.cpp
 
-vm.o : $(SF)/vm.cpp $(HF)/object.h $(HF)/env.h $(HF)/parser.h $(HF)/error.h $(HF)/operator.h $(HF)/repl.h
+vm.o : $(SF)/vm.cpp $(HF)/object.h $(HF)/env.h $(HF)/parser.h $(HF)/error.h $(HF)/operator.h $(HF)/repl.h $(HF)/closure.h
 	$(CC) $(CFLAGS) -c $(SF)/vm.cpp
 
 pattern.o : $(SF)/pattern.cpp $(HF)/pattern.h $(HF)/object.h

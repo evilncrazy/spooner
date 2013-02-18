@@ -9,10 +9,18 @@
 #include "include/repl.h"
 #include "include/operator.h"
 #include "include/parser.h"
+#include "include/closure.h"
+#include "include/exprobject.h"
 
-const SpObject *SpVM::call_function(const SpFunction *f, SpEnv *env) {
+bool SpVM::is_match_pattern(const SpObject *pattern, const SpObject *arg) {
+   // check if the pattern matches
+   if (SpMatch::is_match(pattern, arg)) return true;
+   return false;
+}
+
+const SpObject *SpVM::call_function_with_env(const SpFunction *f, SpEnv *env) {
    // evaluate the function expression
-   return eval(f->expr(), env);
+   return eval(f->expr(), f->type() == T_CLOSURE ? ((SpClosure *)f)->env() : env);
 }
 
 const SpObject *SpVM::call_native_function(const SpNativeFunction *f, SpEnv *env) {
@@ -20,51 +28,50 @@ const SpObject *SpVM::call_native_function(const SpNativeFunction *f, SpEnv *env
    return f->native_eval(env, this);
 }
 
-const SpObject *SpVM::call_function_by_name(const SpList *call_expr, SpEnv *env) {
-   // check what type of object this is
-   std::string name = ((SpName *)call_expr->nth(0))->value();
-   
-   const SpObject *obj = resolve(name, env);
-   if (obj && obj->self()->type() == T_FUNCTION) {
-      SpFunction *func = (SpFunction *)obj->self();
+const SpObject *SpVM::call_function(const std::string &name, const SpFunction *func, const SpExpr *call_expr, SpEnv *env) {
+   // now, evaluate the arguments in a new scope
+   // this is because Spooner is lexically scoped, so any this function call
+   // can only access its arguments
+   std::unique_ptr<SpEnv> call_env(new SpEnv());
 
-      // now, evaluate the arguments in a new scope
-      // this is because Spooner is lexically scoped, so any this function call
-      // can only access its arguments
-      std::unique_ptr<SpEnv> call_env(new SpEnv());
-      for (size_t arg_index = 0; arg_index < call_expr->length() - 1; arg_index++) {
-         SpObject *arg = call_expr->nth(arg_index + 1);
-         if (arg_index < func->pattern()->length()) {
-            // check if the pattern is a name object
-            if (func->pattern(arg_index)->type() == T_NAME) {
-               const char *name = ((SpName *)func->pattern(arg_index))->value();
-               // we handle the 'quote' name specially
-               if (!strcmp(name, "quote")) {
-                  // we need to quote this argument and not evaluate it
-                  call_env->bind_name(func->arguments(arg_index), arg);
-               } else if(!strcmp(name, "_")) {
-                  call_env->bind_name(func->arguments(arg_index), eval(arg, env));
-               }
-            } else {
-               // check if the pattern matches
-               const SpObject *result = eval(arg, env);
-               if (SpMatch::is_match(func->pattern(arg_index), result)) {
-                  call_env->bind_name(func->arguments(arg_index), result);
-               }
+   size_t arg_index = 0;
+   for (auto it = call_expr->cbegin(); it != call_expr->cend(); ++it, arg_index++) {
+      // if there is a pattern for this argument
+      if (arg_index < func->pattern()->length()) {
+         // need to handle the quote pattern specially
+         if (func->pattern(arg_index)->type() == T_NAME) {
+            const char *name = ((SpName *)func->pattern(arg_index))->value();
+            if (!strcmp(name, "quote")) {
+               // we need to quote this argument and not evaluate it
+               call_env->bind_name(func->arguments(arg_index), new SpExprObject(*it));
+            } else if (!strcmp(name, "_")) {
+               // wildcards match anything
+               call_env->bind_name(func->arguments(arg_index), eval(*it, env));
+            } else { 
+               // TODO: allow names in patterns
+               RUNTIME_ERROR("Names cannot be used in patterns yet...");
             }
          } else {
-            // no pattern means anything matches
-            call_env->bind_name(func->arguments(arg_index), eval(arg, env));
+            // check if this pattern matches
+            const SpObject *arg_result = eval(*it, env);
+            if (is_match_pattern(func->pattern(arg_index), arg_result)) {
+               // good, we'll bind this argument
+               call_env->bind_name(func->arguments(arg_index), arg_result);
+            } else {
+               // TODO: need a way...to get the function name
+               RUNTIME_ERROR_F("Arguments in function call to '%s' do not match any patterns", name.c_str());
+            }
          }
+      } else {
+         // no pattern means anything matches
+         call_env->bind_name(func->arguments(arg_index), eval(*it, env));
       }
+   }
 
-      // call the function (either natively or in the VM) using the new environment 
-      return (func->is_native()) ?
-         call_native_function((SpNativeFunction *)func, call_env.get()) :
-         call_function(func, call_env.get());
-   } 
-
-   RUNTIME_ERROR_F("No patterns found for '%s' that matches the arguments given", name.c_str());
+   // call the function (either natively or in the VM) using the new environment 
+   return func->is_native() ?
+      call_native_function((SpNativeFunction *)func, call_env.get()) :
+      call_function_with_env(func, call_env.get());
 }
 
 const SpObject *SpVM::resolve(const std::string name, SpEnv *env) {
@@ -77,56 +84,33 @@ const SpObject *SpVM::resolve(const std::string name, SpEnv *env) {
 }
 
 const SpObject *SpVM::eval(const SpExpr *expr, SpEnv *env) {
-   return eval(expr_as_object(expr), env);
-}
-
-const SpObject *SpVM::eval(const SpObject *obj_expr, SpEnv *env) {
    // check whether this expression is an atom or a function call
-   if (obj_expr->type() == T_LIST) {
-      // this is just another expression
-      return call_function_by_name((SpList *)obj_expr->self(), env);
+   if (expr->head()->type() == TOKEN_FUNCTION_CALL || expr->head()->type() == TOKEN_OPERATOR) {
+      // this is a function call expression
+      std::string func_name(expr->head()->value());
+
+      // we find the function associated with this name in the given environment
+      const SpObject *obj = resolve(func_name, env);
+      if (obj->type() != T_FUNCTION) RUNTIME_ERROR_F("'%s' is not a function", func_name.c_str());
+
+      // now call the function
+      return call_function(func_name, (SpFunction *)obj, expr, env);
    } else {
       // evaluate this atom
-      if (obj_expr->type() == T_NAME) {
-         const SpObject *obj = resolve(((SpName *)obj_expr)->value(), env); 
-         if (obj == NULL)
-            RUNTIME_ERROR_F("Undeclared variable '%s'", ((SpName *)obj_expr)->value());
-         return obj->shallow_copy();
-      } else return obj_expr; // this is already evaluated
-   }
-}
-
-const SpObject *SpVM::expr_as_object(const SpExpr *expr) {
-   SpToken *head = expr->head();
-   
-   if (head->type() == TOKEN_FUNCTION_CALL || head->type() == TOKEN_OPERATOR) {
-      // convert this expr (including the args) into SpObjects
-      std::string name(head->value());
-      if (head->type() == TOKEN_OPERATOR) {
-         // all operators are just binary function calls
-         // so we get the function associated with this
-         // operator and use it as the head
-         SpOperator *op = SpParser::find_operator(head->value());
-         if (op == NULL || (name = op->func_name()) == "")
-            RUNTIME_ERROR("Operator not supported");
-      }
-
-      // prepare the expr list
-      SpList *args = new SpList({ new SpName(name.c_str()) });
-      
-      // convert each argument recursively and append it to the list
-      for (auto it = expr->cbegin(); it != expr->cend(); ++it) {
-         args->append(expr_as_object(*it));
-      }
-
-      return new SpRefObject(args);
-   } else {
-      std::string val = head->value();
-      switch (head->type()) {
-         case TOKEN_NAME: 
-            return new SpName(val.c_str());
+      std::string val = expr->head()->value();
+      switch (expr->head()->type()) {
+         case TOKEN_NAME: {
+            const SpObject *obj = resolve(val, env); 
+            if (obj == NULL)
+               RUNTIME_ERROR_F("Undeclared variable '%s'", val.c_str());
+            return obj->shallow_copy();
+         }
          case TOKEN_NUMERIC:
             return new SpIntValue(atoi(val.c_str()));
+         case TOKEN_CLOSURE:
+            // the closure expression is stored in the first argument of the
+            // object expression
+            return new SpRefObject(new SpClosure(ArgList(), NULL, *expr->cbegin()));
          default:
             RUNTIME_ERROR("Unsupported operation");
       }
@@ -141,5 +125,18 @@ void SpVM::import(const char *filename) {
    while (!in.eof()) {
       // evaluate each complete form
       eval(SpParser(Repl::read_until_complete(in)).parse(), base_scope());
+   }
+}
+
+void SpVM::close_over(SpClosure *closure, const SpObject *expr, SpEnv *env) {
+   if (expr->type() == T_LIST) {
+      SpList *list = (SpList *)expr;
+      for (size_t i = 0; i < list->length(); i++) {
+         close_over(closure, list->nth(i), env);
+      }
+   } else if (expr->type() == T_NAME) {
+      std::string name(((SpName *)expr)->value());
+      const SpObject *obj = env->resolve_name(name.c_str());
+      if (obj) closure->close_over(name, obj);
    }
 }
