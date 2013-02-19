@@ -22,10 +22,6 @@ SpList::~SpList() {
    items_.clear();
 }
 
-SpList *SpList::wrap_as_list(const SpObject *obj) {
-   return new SpList { obj->shallow_copy() };
-}
-
 bool SpList::equals(const SpObject *other) const {
    return other->self()->type() == T_LIST && ((SpList *)other->self())->length() == length(); /* TODO: this is a boilerplate equivalence test */
 }

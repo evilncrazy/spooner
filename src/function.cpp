@@ -81,3 +81,21 @@ const SpObject *SpNativeDef::native_eval(SpEnv *env, SpVM *vm) const {
 
    return NULL;
 }
+
+SpNativeAppend::SpNativeAppend() :
+   SpNativeFunction({ "head", "tail" }) { }
+
+const SpObject *SpNativeAppend::native_eval(SpEnv *env, SpVM *vm) const {
+   // If head isn't a list, we need to make it into a list and then append
+   const SpObject *obj = env->resolve_name("head");
+   if (obj->type() != T_LIST) {
+      return make_list({
+         obj->shallow_copy(), env->resolve_name("tail")->shallow_copy()
+      });
+   } else {
+      static_cast<SpList *>(
+         static_cast<const SpRefObject *>(obj)->ref_copy())->append(
+            env->resolve_name("tail"));
+      return obj->shallow_copy();
+   }
+}

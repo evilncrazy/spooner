@@ -91,7 +91,7 @@ const SpObject *SpVM::resolve(const std::string name, SpEnv *env) {
 
 const SpObject *SpVM::eval(const SpExpr *expr, SpEnv *env) {
    // check whether this expression is an atom or a function call
-   if (expr->head()->type() == TOKEN_FUNCTION_CALL || expr->head()->type() == TOKEN_OPERATOR) {
+   if (expr->head()->type() == TOKEN_FUNCTION_CALL) {
       // this is a function call expression
       std::string func_name(expr->head()->value());
 

@@ -16,6 +16,7 @@ void init_native_functions(SpEnv *env) {
    env->bind_name("+", new SpNativeAdd());
    env->bind_name("with", new SpNativeWith());
    env->bind_name("def", new SpNativeDef());
+   env->bind_name("append", new SpNativeAppend());
 }
 
 void print_expr(const SpExpr *expr) {

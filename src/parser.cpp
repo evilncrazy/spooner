@@ -16,6 +16,7 @@ SpOperator *SpParser::find_operator(const std::string value) {
       { "/", SpOperator("/", 10, ASSOC_LEFT, "") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
       { "-", SpOperator("-", 5, ASSOC_LEFT, "") },
+      { ",", SpOperator(",", 4, ASSOC_LEFT, "append") },
       { "$", SpOperator("$", 2, ASSOC_RIGHT, "call") },
       { ")", SpOperator(")", 0, ASSOC_NONE, "") },
       { "]", SpOperator("]", 0, ASSOC_NONE, "") },
@@ -52,7 +53,7 @@ SpToken *SpParser::next_token() {
    switch (*it_) {
       /* operator tokens */
       case '*': case '/': case '+': case '-':
-      case '$': {
+      case ',': case '$': {
          /* create a new operator token */
          return new SpToken(*it_++, TOKEN_OPERATOR, 2, start);
       }
@@ -154,7 +155,10 @@ const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
          rhs = parse_expr(rhs, next->prec());
       }
 
-      lhs = new SpExpr(token, { lhs, rhs });
+      // TODO(evilncrazy): fix memory leak here (token is not added to expr)
+      lhs = new SpExpr(
+         new SpToken(op->func_name(), TOKEN_FUNCTION_CALL, 2,
+            token->start_pos()), { lhs, rhs });
    }
 
    return lhs;

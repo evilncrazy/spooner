@@ -25,12 +25,15 @@ class SpRefObject : public SpObject {
 
    ObjectType type() const { return self()->type(); }
 
+   SpGCObject *ref_copy() const { return const_cast<SpGCObject *>(ref_.get()); }
    SpObject *shallow_copy() const;
 
    size_t use_count() const { return ref_.use_count(); }
 
    bool equals(const SpObject *other) const { return self()->equals(other->self()); }
    bool is_truthy() const { return self()->is_truthy(); }
+
+   virtual std::string inspect() const { return ref_.get() ? ref_->inspect() : "nil"; }
 };
 
 #endif

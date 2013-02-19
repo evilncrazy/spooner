@@ -9,5 +9,6 @@ SpObject *SpName::shallow_copy() const {
 }
 
 bool SpName::equals(const SpObject *other) const {
-   return other->self()->type() == T_NAME && !strcmp(((SpName *)other->self())->value(), value());
+   return other->type() == T_NAME &&
+      !strcmp(static_cast<const SpName *>(other)->value(), value());
 }

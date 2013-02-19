@@ -69,4 +69,10 @@ class SpNativeDef : public SpNativeFunction {
    const SpObject *native_eval(SpEnv *env, SpVM *vm) const;
 };
 
+class SpNativeAppend : public SpNativeFunction {
+  public:
+   SpNativeAppend();
+   const SpObject *native_eval(SpEnv *env, SpVM *vm) const;
+};
+
 #endif

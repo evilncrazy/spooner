@@ -9,5 +9,6 @@ SpObject *SpIntValue::shallow_copy() const {
 }
 
 bool SpIntValue::equals(const SpObject *other) const {
-   return other->type() == T_INT && value() == ((SpIntValue *)(other->self()))->value();
+   return other->type() == T_INT && 
+      value() == static_cast<const SpIntValue *>(other)->value();
 }
