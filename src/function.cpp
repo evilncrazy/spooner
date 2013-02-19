@@ -1,6 +1,7 @@
 #include "include/function.h"
 
 #include <string>
+#include <algorithm>
 
 #include "include/vm.h"
 #include "include/exprobject.h"
@@ -12,7 +13,8 @@ SpFunction::SpFunction(ArgList args, const SpList *pattern, const SpExpr *expr,
 
 SpFunction::~SpFunction() {
    // delete the pattern and expression
-   delete pattern_; delete expr_;
+   if (pattern_) delete pattern_;
+   if (expr_) delete expr_;
 }
 
 SpNativeFunction::SpNativeFunction(ArgList args, const SpList *pattern) :
@@ -24,8 +26,8 @@ SpNativeAdd::SpNativeAdd() : SpNativeFunction({ "a", "b" }) { }
 
 const SpObject *SpNativeAdd::native_eval(SpEnv *env, SpVM *vm) const {
    return new SpIntValue(
-      ((SpIntValue *)env->resolve_name("a"))->value() +
-      ((SpIntValue *)env->resolve_name("b"))->value());
+      static_cast<const SpIntValue *>(env->resolve_name("a"))->value() +
+      static_cast<const SpIntValue *>(env->resolve_name("b"))->value());
 }
 
 SpNativeWith::SpNativeWith() :
@@ -39,21 +41,43 @@ const SpObject *SpNativeWith::native_eval(SpEnv *env, SpVM *vm) const {
    std::unique_ptr<SpEnv> call_env(new SpEnv());
 
    // TODO(evilncrazy): allow multiple variable declarations
-   const SpExpr *name_expr = ((SpExprObject *)env->resolve_name("x"))->expr();
+   const SpExpr *name_expr =
+      static_cast<const SpExprObject *>(env->resolve_name("x"))->expr();
+
    call_env->bind_name(name_expr->head()->value(),
       env->resolve_name("val")->shallow_copy());
 
    // then, evaluate the quoted body
-   return vm->eval(((SpExprObject *)env->resolve_name("body"))->expr(),
+   return vm->eval(
+      static_cast<const SpExprObject *>(env->resolve_name("body"))->expr(),
       call_env.get());
 }
 
 SpNativeDef::SpNativeDef() :
-   SpNativeFunction({ "name", "patterns", "args", "body" },
+   SpNativeFunction({ "name", "args", "body" },
       new SpList({
-         new SpName("quote"), new SpName("_"), new SpName("quote")
+         new SpName("quote"), new SpName("quote"), new SpName("quote")
       })) { }
 
 const SpObject *SpNativeDef::native_eval(SpEnv *env, SpVM *vm) const {
-   return NULL;  // TODO(evilncrazy): implement this
+   // TODO(evilncrazy): allow patterns in function definitions
+   // create a new function object and add it to the global scope
+   const SpExpr *name_expr =
+      static_cast<const SpExprObject *>(env->resolve_name("name"))->expr();
+
+   // SpFunction requires a list of strings to represent function arguments,
+   // so we convert our arg expression into a list of string names
+   const SpExpr *arg_expr =
+      static_cast<const SpExprObject *>(env->resolve_name("args"))->expr();
+
+   ArgList args(arg_expr->length() - 1);
+   std::transform(arg_expr->cbegin(), arg_expr->cend(), args.begin(),
+      [] (const SpExpr *ex) { return ex->head()->value(); });
+
+   vm->base_scope()->bind_name(name_expr->head()->value(),
+      new SpRefObject(new SpFunction(args, NULL,
+         static_cast<const SpExprObject *>(
+            env->resolve_name("body"))->expr())));
+
+   return NULL;
 }

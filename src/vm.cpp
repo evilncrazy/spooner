@@ -1,7 +1,6 @@
 #include "include/vm.h"
 
 #include <algorithm>
-#include <fstream>
 #include <cstring>
 
 #include "include/value.h"
@@ -20,10 +19,12 @@ bool SpVM::is_match_pattern(const SpObject *pattern, const SpObject *arg) {
 
 const SpObject *SpVM::call_function_with_env(const SpFunction *f, SpEnv *env) {
    // evaluate the function expression
-   return eval(f->expr(), f->type() == T_CLOSURE ? ((SpClosure *)f)->env() : env);
+   return eval(f->expr(), f->type() == T_CLOSURE ?
+      ((SpClosure *)f)->env() : env);
 }
 
-const SpObject *SpVM::call_native_function(const SpNativeFunction *f, SpEnv *env) {
+const SpObject *SpVM::call_native_function(const SpNativeFunction *f,
+    SpEnv *env) {
    // evaluate this native function
    return f->native_eval(env, this);
 }
@@ -33,6 +34,12 @@ const SpObject *SpVM::call_function(const std::string &name, const SpFunction *f
    // this is because Spooner is lexically scoped, so any this function call
    // can only access its arguments
    std::unique_ptr<SpEnv> call_env(new SpEnv());
+
+   // check if the correct number of arguments are provided
+   if (call_expr->length() - 1 != func->num_arguments())
+      RUNTIME_ERROR_F("Function call to '%s' requires %lu arguments, "
+         "but %d given", name.c_str(), func->num_arguments(),
+         call_expr->length() - 1);
 
    size_t arg_index = 0;
    for (auto it = call_expr->cbegin(); it != call_expr->cend(); ++it, arg_index++) {
@@ -58,7 +65,6 @@ const SpObject *SpVM::call_function(const std::string &name, const SpFunction *f
                // good, we'll bind this argument
                call_env->bind_name(func->arguments(arg_index), arg_result);
             } else {
-               // TODO: need a way...to get the function name
                RUNTIME_ERROR_F("Arguments in function call to '%s' do not match any patterns", name.c_str());
             }
          }
@@ -91,10 +97,11 @@ const SpObject *SpVM::eval(const SpExpr *expr, SpEnv *env) {
 
       // we find the function associated with this name in the given environment
       const SpObject *obj = resolve(func_name, env);
-      if (obj->type() != T_FUNCTION) RUNTIME_ERROR_F("'%s' is not a function", func_name.c_str());
+      if (obj == NULL || obj->type() != T_FUNCTION) RUNTIME_ERROR_F("'%s' is not a function", func_name.c_str());
 
       // now call the function
-      return call_function(func_name, (SpFunction *)obj, expr, env);
+      return call_function(func_name, 
+         static_cast<const SpFunction *>(obj->self()), expr, env);
    } else {
       // evaluate this atom
       std::string val = expr->head()->value();
@@ -118,11 +125,11 @@ const SpObject *SpVM::eval(const SpExpr *expr, SpEnv *env) {
 }
 
 void SpVM::import(const char *filename) {
-   std::ifstream in(filename);
-   if (!in.good()) RUNTIME_ERROR("Cannot open import file");
+   FILE *in = fopen(filename, "r");
+   if (!in) RUNTIME_ERROR_F("Cannot open import file '%s'", filename);
 
    // create a new parser to parse this file
-   while (!in.eof()) {
+   while (!feof(in)) {
       // evaluate each complete form
       eval(SpParser(Repl::read_until_complete(in)).parse(), base_scope());
    }

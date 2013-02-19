@@ -10,12 +10,12 @@
 #include <cstdio>
 #include <stack>
 #include <vector>
-#include <iostream>
 #include <string>
 
 void init_native_functions(SpEnv *env) {
    env->bind_name("+", new SpNativeAdd());
    env->bind_name("with", new SpNativeWith());
+   env->bind_name("def", new SpNativeDef());
 }
 
 void print_expr(const SpExpr *expr) {
@@ -32,7 +32,7 @@ void print_expr(const SpExpr *expr) {
 
 void read_and_eval(SpVM &vm) {
    // read and evaluate 
-   const SpExpr *expr = SpParser(Repl::read_until_complete(std::cin, true)).parse();
+   const SpExpr *expr = SpParser(Repl::read_until_complete(stdin, true)).parse();
 
    printf("Successfully parsed expr:\n");
    print_expr(expr);

@@ -5,9 +5,16 @@
 #include "include/pattern.h"
 
 SpEnv::~SpEnv() {
-   /* this should free any GCValues that don't have any objects
-      referencing it. This is done automatically via std::shared_ptr */
-   for (size_t i = 0; i < object_list_.size(); i++) delete object_list_[i], object_list_[i] = NULL;
+   // This should free any GCValues that don't have any objects
+   // referencing it. This is done automatically via std::shared_ptr. 
+   for (size_t i = 0; i < object_list_.size(); i++) {
+      // TODO(evilncrazy): when expressions are implemented as GCObjects, 
+      // delete them here as well (currently, they can't shallow copy and hence
+      // don't have reference counts, which potentially can cause dangling
+      // pointers)
+      if (object_list_[i]->type() != T_EXPR)
+         delete object_list_[i], object_list_[i] = NULL;
+   }
 }
 
 void SpEnv::bind_name(const std::string name, const SpObject *obj) {

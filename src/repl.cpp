@@ -3,19 +3,21 @@
 #include <stack>
 #include <cmath>
 
-std::string Repl::read_until_complete(std::istream &stream, bool interactive) { 
+#include "include/limits.h"
+
+std::string Repl::read_until_complete(FILE *f, bool interactive) { 
    /* start the REPL */
-   std::string buffer;
+   std::string input;
    int depth = 0;
 
    /* print the prompt (if interactive) and ask for input */
    if (interactive) printf("=> ");
 
    std::stack<char> brackets;
-   while (!stream.eof()) {
+   while (!feof(f)) {
       /* read the line */
-      std::string input;
-      getline(stream, input);
+      char buffer[MAX_CHARS_PER_LINE];
+      fgets(buffer, MAX_CHARS_PER_LINE, f);
 
       /* check if this is a well formed code */
       for (size_t i = 0; i < input.length(); i++) {
@@ -35,7 +37,7 @@ std::string Repl::read_until_complete(std::istream &stream, bool interactive) {
       }
 
       /* append the newly read input */
-      buffer += input;
+      input.append(buffer);
 
       /* if there's any leftover brackets, then we need to read more */
       if (brackets.empty()) break;
@@ -44,5 +46,5 @@ std::string Repl::read_until_complete(std::istream &stream, bool interactive) {
       if (interactive) printf(".%s ", std::string(++depth, '.').c_str());
    }
 
-   return buffer;
+   return input;
 }

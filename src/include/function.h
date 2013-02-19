@@ -31,7 +31,10 @@ class SpFunction : public SpGCObject {
 
    const SpList *pattern() const { return pattern_; }
    const SpObject *pattern(int index) const { return pattern_->nth(index); }
+
+   size_t num_arguments() const { return args_.size(); }
    std::string arguments(int index) const { return args_[index]; }
+
    bool is_native() const { return native_; }
 
    const SpExpr *expr() const { return expr_; }
