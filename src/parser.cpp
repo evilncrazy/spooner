@@ -16,7 +16,7 @@ SpOperator *SpParser::find_operator(const std::string value) {
       { "/", SpOperator("/", 10, ASSOC_LEFT, "") },
       { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
       { "-", SpOperator("-", 5, ASSOC_LEFT, "") },
-      { "=", SpOperator("=", 2, ASSOC_LEFT, "") },
+      { "$", SpOperator("$", 2, ASSOC_RIGHT, "call") },
       { ")", SpOperator(")", 0, ASSOC_NONE, "") },
       { "]", SpOperator("]", 0, ASSOC_NONE, "") },
       { "}", SpOperator("}", 0, ASSOC_NONE, "") }
@@ -52,7 +52,7 @@ SpToken *SpParser::next_token() {
    switch (*it_) {
       /* operator tokens */
       case '*': case '/': case '+': case '-':
-      case '=': {
+      case '$': {
          /* create a new operator token */
          return new SpToken(*it_++, TOKEN_OPERATOR, 2, start);
       }

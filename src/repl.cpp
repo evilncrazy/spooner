@@ -14,21 +14,21 @@ std::string Repl::read_until_complete(FILE *f, bool interactive) {
    if (interactive) printf("=> ");
 
    std::stack<char> brackets;
-   while (!feof(f)) {
+   while (true) {
       /* read the line */
       char buffer[MAX_CHARS_PER_LINE];
       fgets(buffer, MAX_CHARS_PER_LINE, f);
 
       /* check if this is a well formed code */
-      for (size_t i = 0; i < input.length(); i++) {
-         if (input[i] == '(' || input[i] == '[' || input[i] == '{')
-            brackets.push(input[i]);
-         else if(input[i] == ')' || input[i] == ']' || input[i] == '}') {
+      for (char *ch = buffer; *ch && *ch != '\n'; ch++) {
+         if (*ch == '(' || *ch == '[' || *ch == '{')
+            brackets.push(*ch);
+         else if(*ch == ')' || *ch == ']' || *ch == '}') {
             /* note that the ASCII values for matching bracket pairs
                differ by at most 2 */
-            if (brackets.empty() || abs(input[i] - brackets.top()) > 2) {
+            if (brackets.empty() || abs(*ch - brackets.top()) > 2) {
                /* oops, we're closing a unmatched bracket */
-               RUNTIME_ERROR_F("Unexpected '%c', closing an unmatched bracket", input[i]);
+               RUNTIME_ERROR_F("Unexpected '%c', closing an unmatched bracket", *ch);
             } else {
                /* good, we have a matching bracket */
                brackets.pop();
