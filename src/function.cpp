@@ -7,9 +7,10 @@
 #include "include/exprobject.h"
 
 SpFunction::SpFunction(ArgList args, const SpList *pattern, const SpExpr *expr,
-   const ObjectType type) :
+   const ObjectType type, const bool variadic) :
    SpGCObject(type), native_(false), args_(args),
-   pattern_(pattern ? pattern : new SpList()), expr_(expr) { }
+   pattern_(pattern ? pattern : new SpList()), expr_(expr),
+   variadic_(variadic) { }
 
 SpFunction::~SpFunction() {
    // delete the pattern and expression
@@ -69,16 +70,34 @@ const SpObject *SpNativeDef::native_eval(SpEnv *env, SpVM *vm) const {
    // so we convert our arg expression into a list of string names
    const SpExpr *arg_expr =
       static_cast<const SpExprObject *>(
-         env->resolve_name("args"))->expr()->flatten();
+         env->resolve_name("args"))->expr()->flatten_only(NULL, "append");
 
-   ArgList args(arg_expr->length() - 1);
-   std::transform(arg_expr->cbegin(), arg_expr->cend(), args.begin(),
-      [] (const SpExpr *ex) { return ex->head()->value(); });
+   ArgList args;
+   bool variadic = false;
+   if (arg_expr->length() == 1) {
+      args.push_back(arg_expr->head()->value());
+   } else if (arg_expr->length() > 1) {
+      args.resize(arg_expr->length() - 2);
+
+      // Convert each argument into a string
+      std::transform(arg_expr->cbegin(), arg_expr->cend() - 1, args.begin(),
+         [] (const SpExpr *ex) { return ex->head()->value(); });
+
+      // Check if the last argument is variadic (a rest argument)
+      // Format of the arg_expr would be ((arg), (arg), (.. (rest)))
+      const SpExpr *last_arg = *(arg_expr->cend() - 1);
+      if ((*(arg_expr->cend() - 1))->head()->value() == "..") {
+         variadic = true;
+         args.push_back((*(last_arg->cbegin()))->head()->value());
+      } else {
+         args.push_back(last_arg->head()->value());
+      }
+   }
 
    vm->base_scope()->bind_name(name_expr->head()->value(),
       new SpRefObject(new SpFunction(args, NULL,
          static_cast<const SpExprObject *>(
-            env->resolve_name("body"))->expr())));
+            env->resolve_name("body"))->expr(), T_FUNCTION, variadic)));
 
    return NULL;
 }

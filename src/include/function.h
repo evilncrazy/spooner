@@ -24,9 +24,11 @@ class SpFunction : public SpGCObject {
    const ArgList args_;
    const SpList *pattern_;
    const SpExpr *expr_;
+   const bool variadic_;
   public:
    SpFunction(ArgList args, const SpList *pattern = NULL,
-      const SpExpr *expr = NULL, const ObjectType type = T_FUNCTION);
+      const SpExpr *expr = NULL, const ObjectType type = T_FUNCTION,
+      const bool variadic = false);
    ~SpFunction();
 
    const SpList *pattern() const { return pattern_; }
@@ -36,6 +38,7 @@ class SpFunction : public SpGCObject {
    std::string arguments(int index) const { return args_[index]; }
 
    bool is_native() const { return native_; }
+   bool is_variadic() const { return variadic_; }
 
    const SpExpr *expr() const { return expr_; }
 

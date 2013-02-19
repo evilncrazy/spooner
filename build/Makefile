@@ -38,7 +38,7 @@ list.o : $(SF)/list.cpp $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h
 function.o : $(SF)/function.cpp $(HF)/function.h $(HF)/env.h $(HF)/list.h $(HF)/gcobject.h $(HF)/object.h $(HF)/exprobject.h
 	$(CC) $(CFLAGS) -c $(SF)/function.cpp
 
-closure.o : $(SF)/closure.cpp $(HF)/closure.h $(HF)/env.h
+closure.o : $(SF)/closure.cpp $(HF)/closure.h $(HF)/function.h $(HF)/env.h
 	$(CC) $(CFLAGS) -c $(SF)/closure.cpp
 
 exprobject.o : $(SF)/exprobject.cpp $(HF)/exprobject.h

@@ -12,12 +12,13 @@ SpParser::SpParser(const std::string &source) : source_(source), it_(source.cbeg
 SpOperator *SpParser::find_operator(const std::string value) {
    /* initialize the operators table as a static variable */
    static auto operators = std::unordered_map<std::string, SpOperator> {
-      { "*", SpOperator("*", 10, ASSOC_LEFT, "") },
-      { "/", SpOperator("/", 10, ASSOC_LEFT, "") },
-      { "+", SpOperator("+", 5, ASSOC_LEFT, "+") },
-      { "-", SpOperator("-", 5, ASSOC_LEFT, "") },
-      { ",", SpOperator(",", 4, ASSOC_LEFT, "append") },
-      { "$", SpOperator("$", 2, ASSOC_RIGHT, "call") },
+      { "*", SpOperator("*", 300, ASSOC_LEFT, "") },
+      { "/", SpOperator("/", 300, ASSOC_LEFT, "") },
+      { "+", SpOperator("+", 200, ASSOC_LEFT, "+") },
+      { "-", SpOperator("-", 200, ASSOC_LEFT, "") },
+      { "..", SpOperator("..", 200, ASSOC_LEFT, "..") },
+      { ",", SpOperator(",", 150, ASSOC_LEFT, "append") },
+      { "$", SpOperator("$", 10, ASSOC_RIGHT, "call") },
       { ")", SpOperator(")", 0, ASSOC_NONE, "") },
       { "]", SpOperator("]", 0, ASSOC_NONE, "") },
       { "}", SpOperator("}", 0, ASSOC_NONE, "") }
@@ -53,7 +54,15 @@ SpToken *SpParser::next_token() {
    switch (*it_) {
       /* operator tokens */
       case '*': case '/': case '+': case '-':
-      case ',': case '$': {
+      case ',': case '$': case '.': {
+         // Handle multiple character operators
+         if (*it_ == '.') {
+            if (*(++it_) != '.')
+               PARSE_ERROR_F("Expected '..', but got '.%c'", *it_);
+            ++it_;
+            return new SpToken("..", TOKEN_OPERATOR, 2, start);
+         }
+
          /* create a new operator token */
          return new SpToken(*it_++, TOKEN_OPERATOR, 2, start);
       }
@@ -133,11 +142,19 @@ const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
    while (true) {
       SpToken *token = peek_token();
       SpOperator *op = find_operator(token->value());
-      if (op == NULL) PARSE_ERROR_F("Undefined operator '%s'", token->value().c_str());
+      if (op == NULL)
+         PARSE_ERROR_F("Undefined operator '%s'", token->value().c_str());
 
-      // loop while the next token has >= precedence that the minimum precedence
+      // Loop while the next token has >= precedence that the minimum precedence
       if (op->prec() < prec) break;
       next_token();
+
+      // Check for postfix operators (a close parens following an operator)
+      if (peek_token()->type() == TOKEN_RIGHT_PARENS) {
+         return new SpExpr(
+            new SpToken(op->func_name(), TOKEN_FUNCTION_CALL, 2, 
+            token->start_pos()), { lhs });
+      }
 
       const SpExpr *rhs = parse_primary();
       while (true) {
@@ -155,9 +172,8 @@ const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
          rhs = parse_expr(rhs, next->prec());
       }
 
-      // TODO(evilncrazy): fix memory leak here (token is not added to expr)
       lhs = new SpExpr(
-         new SpToken(op->func_name(), TOKEN_FUNCTION_CALL, 2,
+         new SpToken(op->func_name(), TOKEN_FUNCTION_CALL, 2, 
             token->start_pos()), { lhs, rhs });
    }
 

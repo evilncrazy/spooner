@@ -36,13 +36,28 @@ const SpObject *SpVM::call_function(const std::string &name, const SpFunction *f
    std::unique_ptr<SpEnv> call_env(new SpEnv());
 
    // check if the correct number of arguments are provided
-   if (call_expr->length() - 1 != func->num_arguments())
+   if ((!func->is_variadic() && call_expr->length() - 1 != func->num_arguments()) || 
+       (call_expr->length() - 1 < func->num_arguments()))
       RUNTIME_ERROR_F("Function call to '%s' requires %lu arguments, "
          "but %d given", name.c_str(), func->num_arguments(),
          call_expr->length() - 1);
 
+   // TODO(evilncrazy): REALLY NEED TO REFACTOR THIS FUNCTION ASAP
    size_t arg_index = 0;
    for (auto it = call_expr->cbegin(); it != call_expr->cend(); ++it, arg_index++) {
+      // If the last argument is variadic, we need to handle it specially
+      if (func->is_variadic() && arg_index == func->num_arguments() - 1) {
+         // TODO(evilncrazy): allow pattern matching for rest arguments
+         SpList *rest = new SpList();
+         for (; it != call_expr->cend(); ++it) {
+            rest->append(eval(*it, env));
+         }
+
+         call_env->bind_name(func->arguments(arg_index),
+            new SpRefObject(rest));
+         break;
+      }
+
       // if there is a pattern for this argument
       if (arg_index < func->pattern()->length()) {
          // need to handle the quote pattern specially
