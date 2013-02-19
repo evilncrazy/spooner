@@ -68,7 +68,8 @@ const SpObject *SpNativeDef::native_eval(SpEnv *env, SpVM *vm) const {
    // SpFunction requires a list of strings to represent function arguments,
    // so we convert our arg expression into a list of string names
    const SpExpr *arg_expr =
-      static_cast<const SpExprObject *>(env->resolve_name("args"))->expr();
+      static_cast<const SpExprObject *>(
+         env->resolve_name("args"))->expr()->flatten();
 
    ArgList args(arg_expr->length() - 1);
    std::transform(arg_expr->cbegin(), arg_expr->cend(), args.begin(),
