@@ -70,7 +70,7 @@ const SpObject *SpNativeDef::native_eval(SpEnv *env, SpVM *vm) const {
    // so we convert our arg expression into a list of string names
    const SpExpr *arg_expr =
       static_cast<const SpExprObject *>(
-         env->resolve_name("args"))->expr()->flatten_only(NULL, "append");
+         env->resolve_name("args"))->expr();
 
    ArgList args;
    bool variadic = false;

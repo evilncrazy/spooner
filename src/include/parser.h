@@ -25,6 +25,7 @@ class SpParser {
    SpToken *peek_token() { return peek ? peek : peek = next_token(); }
 
    const SpExpr *parse_primary();
+   const SpExpr *parse_list_expr(const SpExpr *first = NULL);
    const SpExpr *parse_function();
    const SpExpr *parse_expr(const SpExpr *lhs, int prec);
   public:

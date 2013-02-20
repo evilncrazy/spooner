@@ -25,9 +25,6 @@ class SpExpr {
 
    const ExprList::const_iterator cbegin() const { return exprs_.cbegin(); }
    const ExprList::const_iterator cend() const { return exprs_.cend(); }
-
-   // convert nested expressions into one expr with only atomic subexpressions
-   SpExpr *flatten_only(SpToken *new_head, const std::string &token_name) const;
 };
 
 #endif

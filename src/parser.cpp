@@ -119,7 +119,18 @@ const SpExpr *SpParser::parse_primary() {
    SpToken *next = next_token();
 
    if (next->type() == TOKEN_LEFT_PARENS) {
-      expr = parse_expr(parse_primary(), 1);
+      // This may either be an infix expression or a list literal expression
+      // Infix Expression: PARENS (first_expr) OPERATOR
+      // List Expression: PARENS (first_expr) (another non-operator expr)
+      const SpExpr *first_expr = parse_primary();
+
+      // So depending on the next token, we decide if its an infix or list expr
+      if (peek_token()->type() == TOKEN_OPERATOR) {
+         expr = parse_expr(first_expr, 1);
+      } else {
+         expr = parse_list_expr(first_expr);
+      }
+
       if (next_token()->type() != TOKEN_RIGHT_PARENS) 
          PARSE_ERROR("Expected ')' at end of expression");
    } else if(next->type() == TOKEN_LEFT_SQUARE_BRACKET) {
@@ -138,11 +149,24 @@ const SpExpr *SpParser::parse_primary() {
    return expr;
 }
 
+const SpExpr *SpParser::parse_list_expr(const SpExpr *first) {
+   SpExpr *list_expr = first ?
+      new SpExpr(NULL, { first }) : new SpExpr(NULL);
+   
+   while (peek_token()->type() != TOKEN_RIGHT_PARENS) {
+      list_expr->add(parse_primary());
+   }
+
+   return new SpExpr(
+      new SpToken("list", TOKEN_FUNCTION_CALL, list_expr->length(), 0),
+      list_expr->cbegin(), list_expr->cend());
+}
+
 const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
    while (true) {
       SpToken *token = peek_token();
       SpOperator *op = find_operator(token->value());
-      if (op == NULL)
+      if (op == NULL) 
          PARSE_ERROR_F("Undefined operator '%s'", token->value().c_str());
 
       // Loop while the next token has >= precedence that the minimum precedence
@@ -159,7 +183,9 @@ const SpExpr *SpParser::parse_expr(const SpExpr *lhs, const int prec) {
       const SpExpr *rhs = parse_primary();
       while (true) {
          SpOperator *next = find_operator(peek_token()->value());
-         if (next == NULL) PARSE_ERROR_F("Undefined operator '%s'", peek_token()->value().c_str());
+         if (next == NULL)
+            PARSE_ERROR_F("Undefined operator '%s'", 
+               peek_token()->value().c_str());
 
          // we loop while the next token is:
          // a) a left assoc operator whose precedence is > op's
